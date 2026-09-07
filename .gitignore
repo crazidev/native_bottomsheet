@@ -1,0 +1,52 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+*.swo
+*~
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+
+# OS noise
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# DartNative/Dart/Pub related
+**/doc/api/
+.dart_tool/
+.dn-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+**/build/
+/coverage/
+
+# Xcode per-developer UI state
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+
+# CocoaPods
+Pods/
+Podfile.lock
+.symlinks/
+
+# Android Studio / Gradle
+.gradle/
+local.properties
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
