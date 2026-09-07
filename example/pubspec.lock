@@ -9,6 +9,20 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.2.0"
+  dartnative:
+    dependency: "direct overridden"
+    description:
+      path: ".dart_tool/dartnative_sdk/dartnative"
+      relative: true
+    source: path
+    version: "1.0.0"
+  dartnative_android:
+    dependency: "direct overridden"
+    description:
+      path: ".dart_tool/dartnative_sdk/dartnative_android"
+      relative: true
+    source: path
+    version: "1.0.0"
   dartnative_bottom_sheet:
     dependency: "direct main"
     description:
@@ -16,6 +30,13 @@ packages:
       relative: true
     source: path
     version: "0.1.0"
+  dartnative_ios:
+    dependency: "direct overridden"
+    description:
+      path: ".dart_tool/dartnative_sdk/dartnative_ios"
+      relative: true
+    source: path
+    version: "1.0.0"
   ffi:
     dependency: "direct main"
     description:

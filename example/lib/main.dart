@@ -1,5 +1,6 @@
 import 'package:dartnative/dartnative.dart';
 import 'package:dartnative/flutter_compat.dart';
+import 'package:dartnative_android/dartnative_android.dart';
 import 'package:dartnative_bottom_sheet/dartnative_bottom_sheet.dart';
 import 'package:example/component/adjust_detent_sheet.dart';
 import 'package:example/component/fit_content_sheet.dart';
@@ -19,7 +20,15 @@ void main() {
     systemNavigationBarIconBrightness: Brightness.dark,
   );
 
-  runApp(const BottomSheetExampleApp());
+  DartNativeLogger.run(
+    () {
+      registerNativeBindings(AndroidNativeBindings.instance);
+      runApp(const BottomSheetExampleApp());
+    },
+    verbose: true, // framework-internal diagnostics
+    saveToFile: true, // persist every session to a log file
+  );
+  // runApp(const BottomSheetExampleApp());
 }
 
 class BottomSheetExampleApp extends StatefulWidget {
@@ -48,6 +57,7 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
       detents: const [DNSheetDetent.contentFit],
       initialDetent: DNSheetDetent.contentFit,
       showGrabber: true,
+      platformConfig: DNSheetPlatformConfig.android(),
       builder: (ctx, ctrl) => FitContentSheet(
         controller: ctrl,
         onStateChanged: (desc) => _updateStatus('Fit Content: $desc'),
@@ -158,98 +168,6 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         children: [
-          // Header description
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFE5E5EA)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'DartNative Bottom Sheet Suite',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1C1C1E),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Native UISheetPresentationController (iOS) & Compose ModalBottomSheet (Android) with pure FFI integration.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF8E8E93),
-                    height: 1.35,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF2F2F7),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        CupertinoIcons.info_circle,
-                        size: 16,
-                        color: Color(0xFF007AFF),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _lastEvent,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF3A3A3C),
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (_currentActiveSheet != null) ...[
-                  const SizedBox(height: 10),
-                  GestureDetector(
-                    onTap: () {
-                      _currentActiveSheet?.dismiss();
-                    },
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF3B30).withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'Dismiss Active Sheet from Parent',
-                          style: TextStyle(
-                            color: Color(0xFFFF3B30),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
           // Section 1: Fit Content
           TestCaseCard(
             title: 'Fit to Content',
@@ -384,13 +302,11 @@ class TestCaseCard extends StatelessWidget {
 class SnapButton extends StatelessWidget {
   const SnapButton({
     required this.label,
-    required this.sublabel,
     required this.isSelected,
     required this.onTap,
   });
 
   final String label;
-  final String sublabel;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -430,14 +346,6 @@ class SnapButton extends StatelessWidget {
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    sublabel,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF8E8E93),
                     ),
                   ),
                 ],

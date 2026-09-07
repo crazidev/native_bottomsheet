@@ -63,21 +63,18 @@ class AdjustDetentSheetState extends State<AdjustDetentSheet> {
           // Detent switcher buttons
           SnapButton(
             label: 'Snap to Fraction (35%)',
-            sublabel: 'Compact peek sheet',
             isSelected: _activeDetent == const DNSheetDetent.fraction(0.35),
             onTap: () => _snap(const DNSheetDetent.fraction(0.35)),
           ),
           const SizedBox(height: 10),
           SnapButton(
             label: 'Snap to Medium (50%)',
-            sublabel: 'Standard half-screen sheet',
             isSelected: _activeDetent == DNSheetDetent.medium,
             onTap: () => _snap(DNSheetDetent.medium),
           ),
           const SizedBox(height: 10),
           SnapButton(
             label: 'Snap to Large (Full Height)',
-            sublabel: 'Full expanded modal view',
             isSelected: _activeDetent == DNSheetDetent.large,
             onTap: () => _snap(DNSheetDetent.large),
           ),

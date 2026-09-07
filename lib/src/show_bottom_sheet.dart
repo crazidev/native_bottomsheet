@@ -58,6 +58,10 @@ DNSheetController showBottomSheet(
   /// Scrim opacity (0.0–1.0). null = platform default (~0.4).
   double? scrimOpacity,
 
+  /// Sheet container background color. When null, the native layer
+  /// automatically adopts the child view's background color or theme default.
+  Color? backgroundColor,
+
   /// Whether the user can dismiss the sheet by swiping or tapping the scrim.
   /// When false, [onDismissAttempted] is called instead of dismissing.
   bool isDismissable = true,
@@ -113,6 +117,7 @@ DNSheetController showBottomSheet(
     'showGrabber': showGrabber,
     'cornerRadius': ?cornerRadius,
     'scrimOpacity': ?scrimOpacity,
+    if (backgroundColor != null) 'backgroundColor': backgroundColor.value,
     'isDismissable': isDismissable,
     'scrollExpandsSheet': scrollExpandsSheet,
     'routerEnabled': routerEnabled,

@@ -20,7 +20,7 @@ class InputSheetState extends State<InputSheet> {
   Widget build(BuildContext context) {
     return Container(
       color: const Color(0xFF1C1C1E),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 30),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

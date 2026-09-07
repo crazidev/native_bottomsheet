@@ -1,20 +1,35 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.dartnative.bottom_sheet
 
+import android.app.Activity
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RoundedCornerShape
+import androidx.compose.ui.platform.AndroidUiDispatcher
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.findViewTreeLifecycleOwner
+import androidx.lifecycle.findViewTreeViewModelStoreOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.savedstate.findViewTreeSavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import androidx.savedstate.SavedStateRegistryOwner
 import com.dartnative.DNAppContext
+import com.dartnative.DNFlexLayout
 import com.dartnative.DNViewRegistry
 import kotlinx.coroutines.*
 import org.json.JSONObject
@@ -27,23 +42,6 @@ private const val EVENT_DETENT_CHANGED     = 1
 private const val EVENT_DISMISSED          = 2
 private const val EVENT_DISMISS_ATTEMPTED  = 3
 
-// ─── Dispatcher (generation-counter pattern) ──────────────────────────────────
-
-@Volatile private var dispatcherPtr: Long = 0L
-@Volatile private var dispatcherGen: Long = 0L
-
-private external fun nativeIsolateGen(): Long
-private external fun nativeDeliver(ptr: Long, token: Long, type: Int, payload: String)
-
-private fun fireToDart(token: Long, type: Int, payload: String) {
-    mainHandler.post {
-        if (dispatcherGen != nativeIsolateGen()) return@post   // hot restart → drop
-        val ptr = dispatcherPtr
-        if (ptr == 0L) return@post
-        nativeDeliver(ptr, token, type, payload)
-    }
-}
-
 // ─── Active sheet entries ────────────────────────────────────────────────────
 
 private data class DetentSpec(val type: String, val value: Double = 0.0, val name: String = "")
@@ -52,8 +50,10 @@ private class SheetEntry(
     val sheetId: Long,
     val detents: List<DetentSpec>,
     val sheetState: SheetState,
-    val scope: CoroutineScope,
+    var scope: CoroutineScope,
     val composeView: ComposeView,
+    val container: DNBottomSheetContainer,
+    val rootViewId: Long,
     var skipPartiallyExpanded: Boolean,
 )
 
@@ -74,9 +74,47 @@ private fun parseDetent(obj: JSONObject): DetentSpec {
 
 object DNBottomSheetBridge {
 
+    @Volatile private var dispatcherPtr: Long = 0L
+    @Volatile private var dispatcherGen: Long = 0L
+
+    @JvmStatic
+    external fun nativeIsolateGen(): Long
+
+    @JvmStatic
+    external fun nativeDeliver(ptr: Long, token: Long, type: Int, payload: String)
+
+    external fun nativeInit(bridge: Any)
+
+    init {
+        try {
+            System.loadLibrary("dartnative_bottom_sheet")
+            nativeInit(this)
+        } catch (e: Throwable) {
+            Log.w(TAG, "DNBottomSheetBridge: nativeInit failed in static init: $e")
+        }
+    }
+
+    fun init() {
+        try {
+            nativeInit(this)
+            Log.d(TAG, "DNBottomSheetBridge: nativeInit registered")
+        } catch (e: Throwable) {
+            Log.w(TAG, "DNBottomSheetBridge: nativeInit failed: $e")
+        }
+    }
+
     fun setDispatcher(ptr: Long) {
         dispatcherPtr = ptr
         dispatcherGen = nativeIsolateGen()   // capture gen WITH the pointer
+    }
+
+    fun fireToDart(token: Long, type: Int, payload: String) {
+        mainHandler.post {
+            if (dispatcherGen != nativeIsolateGen()) return@post   // hot restart → drop
+            val ptr = dispatcherPtr
+            if (ptr == 0L) return@post
+            nativeDeliver(ptr, token, type, payload)
+        }
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -95,8 +133,12 @@ object DNBottomSheetBridge {
         val routerEnabled  = cfg.optBoolean("routerEnabled", false)
 
         val androidCfg     = cfg.optJSONObject("android")
-        val tonalElevation = androidCfg?.optDouble("tonalElevation", 2.0)?.toFloat() ?: 2f
-        val containerColorInt = androidCfg?.optInt("containerColor", -1) ?: -1
+        val tonalElevation = androidCfg?.optDouble("tonalElevation", 0.0)?.toFloat() ?: 0f
+        val containerColorInt = if (cfg.has("backgroundColor")) {
+            cfg.getLong("backgroundColor").toInt()
+        } else {
+            androidCfg?.optInt("containerColor", -1) ?: -1
+        }
 
         val detents = (0 until detentArr.length()).map { parseDetent(detentArr.getJSONObject(it)) }
 
@@ -104,22 +146,49 @@ object DNBottomSheetBridge {
         val hasMedium    = detents.any { it.type == "named" && it.name == "medium" }
         val skip         = !hasMedium
 
-        val ctx = DNAppContext.get() ?: return 0L
-        val rootView = android.widget.FrameLayout(ctx)
+        val activity = DNAppContext.activity()
+        val ctx = activity ?: DNAppContext.get()
+        if (ctx == null) {
+            Log.e(TAG, "show: no Context found from DNAppContext")
+            return 0L
+        }
+
+        // 1. Create a native DNBottomSheetContainer (extends DNView)
+        val container = DNBottomSheetContainer(ctx)
+
+        // 2. Register with DNViewRegistry to obtain a unique viewId
         val rootViewId = try {
-            DNViewRegistry.register(rootView)
+            DNViewRegistry.register(container)
         } catch (e: Exception) {
             Log.e(TAG, "show: DNViewRegistry.register error: $e")
             0L
         }
 
-        mainHandler.post {
-            val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        // 3. Associate yogaViewId and register with DNFlexLayout so YogaNode is created
+        container.yogaViewId = rootViewId
+        DNFlexLayout.register(rootViewId, container)
 
+        mainHandler.post {
+            val currentActivity = DNAppContext.activity() ?: activity
+            val decorView = currentActivity?.window?.decorView as? ViewGroup
+            if (currentActivity == null || decorView == null) {
+                Log.e(TAG, "show: currentActivity or decorView is null")
+                return@post
+            }
+
+            val scope = CoroutineScope(AndroidUiDispatcher.Main + SupervisorJob())
             var entryRef: SheetEntry? = null
 
-            val composeView = ComposeView(ctx).apply {
+            val composeView = ComposeView(currentActivity).apply {
+                setViewCompositionStrategy(
+                    ViewCompositionStrategy.DisposeOnDetachedFromWindow
+                )
                 setContent {
+                    val coroutineScope = rememberCoroutineScope()
+                    if (entryRef != null) {
+                        entryRef?.scope = coroutineScope
+                    }
+
                     val sheetState = rememberModalBottomSheetState(
                         skipPartiallyExpanded = skip,
                         confirmValueChange = { newValue ->
@@ -165,25 +234,65 @@ object DNBottomSheetBridge {
                         topEnd = cornerRadius.dp
                     )
                     val scrim = Color.Black.copy(alpha = scrimOpacity)
-                    val container = if (containerColorInt != -1)
-                        Color(containerColorInt) else MaterialTheme.colorScheme.surface
+
+                    val defaultColor = if (containerColorInt != -1) {
+                        Color(containerColorInt)
+                    } else {
+                        val uiMode = (currentActivity ?: ctx).resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+                        val isSysDark = uiMode == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                        if (isSysDark) Color(0xFF18181A) else MaterialTheme.colorScheme.surface
+                    }
+
+                    val dynamicBgColor = remember { mutableStateOf(defaultColor) }
+
+                    DisposableEffect(container) {
+                        container.onChildBgDetected = { bgInt ->
+                            if (containerColorInt == -1) {
+                                dynamicBgColor.value = Color(bgInt)
+                            }
+                        }
+                        val immediateBg = container.detectChildBg()
+                        if (immediateBg != null && immediateBg != 0 && containerColorInt == -1) {
+                            dynamicBgColor.value = Color(immediateBg)
+                        }
+                        onDispose {
+                            container.onChildBgDetected = null
+                        }
+                    }
+
+                    val resolvedContainerColor = dynamicBgColor.value
 
                     ModalBottomSheet(
                         onDismissRequest = {
                             activeSheets.remove(sheetId)
                             if (rootViewId > 0) {
-                                try { DNViewRegistry.release(rootViewId) } catch (e: Exception) {}
+                                try {
+                                    DNFlexLayout.release(rootViewId)
+                                    DNViewRegistry.release(rootViewId)
+                                } catch (e: Exception) {}
                             }
                             scope.cancel()
+                            try {
+                                (parent as? ViewGroup)?.removeView(this@apply)
+                            } catch (e: Exception) {}
                             fireToDart(sheetId, EVENT_DISMISSED, "{}")
                         },
                         sheetState = sheetState,
                         shape = shape,
-                        containerColor = container,
+                        containerColor = resolvedContainerColor,
                         scrimColor = scrim,
                         tonalElevation = tonalElevation.dp,
                         dragHandle = if (showGrabber) {
-                            { BottomSheetDefaults.DragHandle() }
+                            {
+                                val lum = 0.2126f * resolvedContainerColor.red +
+                                          0.7152f * resolvedContainerColor.green +
+                                          0.0722f * resolvedContainerColor.blue
+                                val isDark = lum < 0.5f
+                                BottomSheetDefaults.DragHandle(
+                                    color = if (isDark) Color.White.copy(alpha = 0.35f)
+                                            else Color.Black.copy(alpha = 0.35f)
+                                )
+                            }
                         } else null,
                         windowInsets = WindowInsets.navigationBars,
                     ) {
@@ -197,10 +306,11 @@ object DNBottomSheetBridge {
                         Box(modifier = modContent.fillMaxWidth()) {
                             AndroidView(
                                 factory = {
-                                    rootView.apply {
-                                        layoutParams = android.widget.FrameLayout.LayoutParams(
-                                            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                                            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                                    (container.parent as? ViewGroup)?.removeView(container)
+                                    container.apply {
+                                        layoutParams = ViewGroup.LayoutParams(
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                            ViewGroup.LayoutParams.WRAP_CONTENT,
                                         )
                                         tag = "dn_sheet_container_$sheetId"
                                     }
@@ -216,8 +326,10 @@ object DNBottomSheetBridge {
                             sheetId = sheetId,
                             detents = detents,
                             sheetState = sheetState,
-                            scope = scope,
+                            scope = coroutineScope,
                             composeView = this@apply,
+                            container = container,
+                            rootViewId = rootViewId,
                             skipPartiallyExpanded = skip,
                         )
                         entryRef = entry
@@ -226,22 +338,25 @@ object DNBottomSheetBridge {
                 }
             }
 
-            // Add ComposeView to window — full-screen transparent overlay
-            val window = ctx.resources  // We need activity window; DNAppContext provides it
-            // Note: In DartNative, sheets are presented as dialogs with ComposeView.
-            // The actual window attachment is done via the DartNative window management API.
-            // For now we use the standard approach of adding to the DecorView.
+            // Ensure ViewTree owners are present before adding to DecorView
             try {
-                val activity = DNAppContext.get() as? android.app.Activity ?: return@post
-                val decorView = activity.window.decorView as android.widget.FrameLayout
-                val params = android.widget.FrameLayout.LayoutParams(
-                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                )
-                // Lifecycle owner for Compose
+                val decor = currentActivity.window.decorView
                 composeView.setViewTreeLifecycleOwner(
-                    composeView.findViewTreeLifecycleOwner()
-                        ?: (activity as? androidx.lifecycle.LifecycleOwner)
+                    decor.findViewTreeLifecycleOwner()
+                        ?: (currentActivity as? LifecycleOwner)
+                )
+                composeView.setViewTreeViewModelStoreOwner(
+                    decor.findViewTreeViewModelStoreOwner()
+                        ?: (currentActivity as? ViewModelStoreOwner)
+                )
+                composeView.setViewTreeSavedStateRegistryOwner(
+                    decor.findViewTreeSavedStateRegistryOwner()
+                        ?: (currentActivity as? SavedStateRegistryOwner)
+                )
+
+                val params = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
                 )
                 decorView.addView(composeView, params)
             } catch (e: Exception) {
@@ -255,7 +370,25 @@ object DNBottomSheetBridge {
         mainHandler.post {
             val entry = activeSheets[sheetId] ?: return@post
             entry.scope.launch {
-                entry.sheetState.hide()
+                try {
+                    if (animated) {
+                        entry.sheetState.hide()
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "dismiss: hide failed: $e")
+                } finally {
+                    activeSheets.remove(sheetId)
+                    if (entry.rootViewId > 0) {
+                        try {
+                            DNFlexLayout.release(entry.rootViewId)
+                            DNViewRegistry.release(entry.rootViewId)
+                        } catch (e: Exception) {}
+                    }
+                    try {
+                        (entry.composeView.parent as? ViewGroup)?.removeView(entry.composeView)
+                    } catch (e: Exception) {}
+                    fireToDart(sheetId, EVENT_DISMISSED, "{}")
+                }
             }
         }
     }
@@ -276,22 +409,18 @@ object DNBottomSheetBridge {
     fun layoutContent(sheetId: Long) {
         mainHandler.post {
             val entry = activeSheets[sheetId] ?: return@post
-            val container = entry.composeView.findViewWithTag<android.widget.FrameLayout>(
-                "dn_sheet_container_$sheetId"
-            ) ?: return@post
-            container.requestLayout()
-            container.invalidate()
+            DNFlexLayout.requestLayout()
+            entry.container.requestLayout()
+            entry.container.invalidate()
         }
     }
 
     fun invalidateDetents(sheetId: Long) {
         mainHandler.post {
             val entry = activeSheets[sheetId] ?: return@post
-            val container = entry.composeView.findViewWithTag<android.widget.FrameLayout>(
-                "dn_sheet_container_$sheetId"
-            ) ?: return@post
-            container.requestLayout()
-            container.invalidate()
+            DNFlexLayout.requestLayout()
+            entry.container.requestLayout()
+            entry.container.invalidate()
         }
     }
 
@@ -312,19 +441,17 @@ object DNBottomSheetBridge {
                 Log.e(TAG, "mountContent: viewId $viewId not found: $e"); return@post
             }
 
-            // Find the container FrameLayout by tag and swap in the Dart view.
-            val container = entry.composeView.findViewWithTag<android.widget.FrameLayout>(
-                "dn_sheet_container_$sheetId"
-            ) ?: return@post
-
-            container.removeAllViews()
-            container.addView(
+            // Swap in the Dart view into the container
+            entry.container.removeAllViews()
+            entry.container.addView(
                 dartView,
-                android.widget.FrameLayout.LayoutParams(
-                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
                 )
             )
+            DNFlexLayout.requestLayout()
+            entry.container.requestLayout()
         }
     }
 
@@ -347,7 +474,11 @@ object DNBottomSheetBridge {
             for (entry in entries) {
                 entry.scope.cancel()
                 try {
-                    (entry.composeView.parent as? android.view.ViewGroup)
+                    if (entry.rootViewId > 0) {
+                        DNFlexLayout.release(entry.rootViewId)
+                        DNViewRegistry.release(entry.rootViewId)
+                    }
+                    (entry.composeView.parent as? ViewGroup)
                         ?.removeView(entry.composeView)
                 } catch (e: Exception) {
                     Log.w(TAG, "dismissAllForReset: remove failed: $e")
@@ -356,3 +487,5 @@ object DNBottomSheetBridge {
         }
     }
 }
+
+
