@@ -253,13 +253,10 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
           // Section 1: Fit Content
           TestCaseCard(
             title: 'Fit to Content',
-            badge: 'Auto-Resizing',
-            badgeColor: const Color(0xFF34C759),
             description:
                 'Auto-measures intrinsic content height using Yoga. Dynamically expands or collapses size on state mutation.',
             buttonText: 'Test Fit to Content',
             buttonColor: const Color(0xFF34C759),
-            icon: CupertinoIcons.arrow_up_left_arrow_down_right,
             onTap: _openFitToContentSheet,
           ),
           const SizedBox(height: 14),
@@ -267,13 +264,10 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
           // Section 2: Input Sheet
           TestCaseCard(
             title: 'Sheet with Input',
-            badge: 'TextField & Keyboard',
-            badgeColor: const Color(0xFF007AFF),
             description:
                 'Embedded native TextField with keyboard elevation, focus handling, live text mirroring, and form submission.',
             buttonText: 'Test Input Sheet',
             buttonColor: const Color(0xFF007AFF),
-            icon: CupertinoIcons.pencil_ellipsis_rectangle,
             onTap: _openInputSheet,
           ),
           const SizedBox(height: 14),
@@ -281,13 +275,10 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
           // Section 3: General with Adjust Detents
           TestCaseCard(
             title: 'Adjust Detents',
-            badge: 'Programmatic Snap',
-            badgeColor: const Color(0xFF5856D6),
             description:
                 'Multi-detent support (fraction 35%, medium 50%, large 100%). Interactive buttons to snap between detents programmatically.',
             buttonText: 'Test Adjust Detents',
             buttonColor: const Color(0xFF5856D6),
-            icon: CupertinoIcons.slider_horizontal_3,
             onTap: _openAdjustDetentSheet,
           ),
           const SizedBox(height: 14),
@@ -295,13 +286,10 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
           // Section 4: Prevent Close
           TestCaseCard(
             title: 'Prevent Close',
-            badge: 'Non-Dismissable',
-            badgeColor: const Color(0xFFFF9500),
             description:
                 'Blocks swipe-to-dismiss and scrim taps. Calls onDismissAttempted callback; requires explicit confirmation button to close.',
             buttonText: 'Test Prevent Close',
             buttonColor: const Color(0xFFFF9500),
-            icon: CupertinoIcons.lock_fill,
             onTap: _openPreventCloseSheet,
           ),
           const SizedBox(height: 30),
@@ -318,22 +306,16 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
 class TestCaseCard extends StatelessWidget {
   const TestCaseCard({
     required this.title,
-    required this.badge,
-    required this.badgeColor,
     required this.description,
     required this.buttonText,
     required this.buttonColor,
-    required this.icon,
     required this.onTap,
   });
 
   final String title;
-  final String badge;
-  final Color badgeColor;
   final String description;
   final String buttonText;
   final Color buttonColor;
-  final IconData icon;
   final VoidCallback onTap;
 
   @override
@@ -350,16 +332,6 @@ class TestCaseCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: buttonColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: buttonColor, size: 20),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   title,
@@ -370,33 +342,18 @@ class TestCaseCard extends StatelessWidget {
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: badgeColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  badge,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: badgeColor,
-                  ),
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 10),
-          Text(
-            description,
-            style: const TextStyle(
-              fontSize: 13,
-              color: Color(0xFF636366),
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 14),
+          // Text(
+          //   description,
+          //   style: const TextStyle(
+          //     fontSize: 13,
+          //     color: Color(0xFF636366),
+          //     height: 1.35,
+          //   ),
+          // ),
+          // const SizedBox(height: 14),
           GestureDetector(
             onTap: onTap,
             child: Container(
