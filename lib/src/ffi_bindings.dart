@@ -15,7 +15,7 @@ abstract final class _SheetEvent {
   static const int detentChanged    = 1;
   static const int dismissed        = 2;
   static const int dismissAttempted = 3;
-  // 4 = contentSizeMeasured (internal, used for contentFit invalidation)
+  static const int presented        = 4;
 }
 
 // ─── Handler map ───────────────────────────────────────────────────────────
@@ -176,4 +176,5 @@ class BottomSheetFFIBindings {
   static const int eventDetentChanged    = _SheetEvent.detentChanged;
   static const int eventDismissed        = _SheetEvent.dismissed;
   static const int eventDismissAttempted = _SheetEvent.dismissAttempted;
+  static const int eventPresented        = _SheetEvent.presented;
 }

@@ -7,10 +7,21 @@ private func dnLog(_ msg: String) { print("[DNBottomSheet] \(msg)") }
 
 private final class _DNBottomSheetContainerViewController: UIViewController {
     weak var rootView: UIView?
+    /// Explicit sheet background. When set, it wins and the child-bg scan is skipped.
+    var explicitBackgroundColor: UIColor?
+    /// When false (and no explicit color), keep the platform default instead of
+    /// scanning the Dart view tree for a background color.
+    var adaptToContainerBackground = true
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .clear
+        if let explicit = explicitBackgroundColor {
+            view.backgroundColor = explicit
+        } else if adaptToContainerBackground {
+            view.backgroundColor = .clear
+        } else {
+            view.backgroundColor = .systemBackground
+        }
         view.clipsToBounds = true
     }
 
@@ -33,6 +44,13 @@ private final class _DNBottomSheetContainerViewController: UIViewController {
     }
 
     func syncBackgroundColor() {
+        // Explicit color always wins — re-enforce it (UIKit may reset it).
+        if let explicit = explicitBackgroundColor {
+            view.backgroundColor = explicit
+            return
+        }
+        // Opted out of the legacy child-bg scan: keep the platform default.
+        if !adaptToContainerBackground { return }
         func findBg(in v: UIView?) -> UIColor? {
             guard let v = v else { return nil }
             if let bg = v.backgroundColor, bg != .clear, bg.cgColor.alpha > 0.05 {
@@ -53,14 +71,44 @@ private final class _DNBottomSheetContainerViewController: UIViewController {
         let targetWidth = width > 0 ? width : (view.bounds.width > 0 ? view.bounds.width : UIScreen.main.bounds.width)
         rv.frame = CGRect(x: 0, y: 0, width: targetWidth, height: 0)
         rv.flex.layout(mode: .adjustHeight)
-        return rv.frame.height
+        let measured = rv.frame.height
+        if view.bounds.height > 0 {
+            rv.frame = view.bounds
+            rv.flex.layout(mode: .fitContainer)
+            _dnCATransactionCommit?()
+        }
+        return measured
     }
 
     func layoutRootFlex() {
         guard let rv = rootView else { return }
         rv.frame = view.bounds
         rv.flex.layout(mode: .fitContainer)
+        _dnCATransactionCommit?()
         syncBackgroundColor()
+        if #available(iOS 15.0, *) {
+            if let sv = findScrollView(in: view) {
+                setContentScrollView(sv, for: .top)
+                navigationController?.setContentScrollView(sv, for: .top)
+            }
+        }
+    }
+
+    private func findScrollView(in v: UIView?) -> UIScrollView? {
+        guard let v = v else { return nil }
+        if let sv = v as? UIScrollView { return sv }
+        for sub in v.subviews {
+            if let sv = findScrollView(in: sub) { return sv }
+        }
+        return nil
+    }
+
+    @available(iOS 15.0, *)
+    override func contentScrollView(for edge: NSDirectionalRectEdge) -> UIScrollView? {
+        if edge == .top {
+            return findScrollView(in: view)
+        }
+        return super.contentScrollView(for: edge)
     }
 }
 
@@ -91,6 +139,7 @@ private func fireToDart(token: Int64, type: Int32, payload: String) {
 private let kEventDetentChanged:    Int32 = 1
 private let kEventDismissed:        Int32 = 2
 private let kEventDismissAttempted: Int32 = 3
+private let kEventPresented:        Int32 = 4
 
 // ─── Active sheets registry ─────────────────────────────────────────────────
 
@@ -233,6 +282,12 @@ private func _viewFor(_ id: Int64) -> UIView? {
         .takeUnretainedValue()
 }
 
+private typealias _CATransactionCommitFn = @convention(c) () -> Void
+private let _dnCATransactionCommit: _CATransactionCommitFn? = {
+    guard let s = dlsym(dlopen(nil, RTLD_NOLOAD), "DNCATransactionCommit") else { return nil }
+    return unsafeBitCast(s, to: _CATransactionCommitFn.self)
+}()
+
 // ── Find front-most presenting VC ──────────────────────────────────────────
 
 private func frontVC() -> UIViewController? {
@@ -363,6 +418,24 @@ public func DNBottomSheetShow(_ jsonCStr: UnsafePointer<CChar>) -> Int64 {
     let isDismissable  = cfg["isDismissable"]    as? Bool ?? true
     let scrollExpands  = cfg["scrollExpandsSheet"] as? Bool ?? true
     let routerEnabled  = cfg["routerEnabled"]     as? Bool ?? false
+    let adaptBg = cfg["adaptToContainerBackground"] as? Bool ?? true
+    // 0xAARRGGBB (may arrive as signed Int from Dart) → UIColor.
+    var explicitBg: UIColor?
+    if let n = cfg["backgroundColor"] as? Int {
+        let u = UInt32(truncatingIfNeeded: Int64(n))
+        let a = CGFloat((u >> 24) & 0xFF) / 255.0
+        let r = CGFloat((u >> 16) & 0xFF) / 255.0
+        let g = CGFloat((u >> 8) & 0xFF) / 255.0
+        let b = CGFloat(u & 0xFF) / 255.0
+        explicitBg = UIColor(red: r, green: g, blue: b, alpha: a)
+    } else if let n = cfg["backgroundColor"] as? Int64 {
+        let u = UInt32(truncatingIfNeeded: n)
+        let a = CGFloat((u >> 24) & 0xFF) / 255.0
+        let r = CGFloat((u >> 16) & 0xFF) / 255.0
+        let g = CGFloat((u >> 8) & 0xFF) / 255.0
+        let b = CGFloat(u & 0xFF) / 255.0
+        explicitBg = UIColor(red: r, green: g, blue: b, alpha: a)
+    }
 
     let iosCfg     = cfg["ios"] as? [String: Any] ?? [:]
     let undimmedIdx = iosCfg["largestUndimmedDetentIndex"] as? Int ?? -1
@@ -372,17 +445,50 @@ public func DNBottomSheetShow(_ jsonCStr: UnsafePointer<CChar>) -> Int64 {
 
     let detents = detentDicts.map { parseDetent(from: $0) }
 
+    guard let presenter = frontVC() else {
+        dnLog("DNBottomSheetShow: could not find front VC")
+        return 0
+    }
+
     // Allocate root DNView for Dart content
     let rootViewId = _dnCreateView?(0) ?? 0
     let dartRootView = _viewFor(rootViewId)
 
+    // Pre-calculate target bounds from presenter/screen so initial Yoga layout pass
+    // never runs against a 0x0 frame.
+    let screenBounds = presenter.view.window?.bounds ?? presenter.view.bounds
+    let targetWidth = screenBounds.width > 0 ? screenBounds.width : UIScreen.main.bounds.width
+    let targetHeight: CGFloat
+    if let firstDetent = detents.first {
+        switch firstDetent {
+        case .named(let n) where n == "medium":
+            targetHeight = (screenBounds.height > 0 ? screenBounds.height : UIScreen.main.bounds.height) * 0.5
+        case .named(let n) where n == "large":
+            targetHeight = (screenBounds.height > 0 ? screenBounds.height : UIScreen.main.bounds.height) * 0.9
+        case .fraction(let f):
+            targetHeight = (screenBounds.height > 0 ? screenBounds.height : UIScreen.main.bounds.height) * CGFloat(f)
+        case .pixels(let p):
+            targetHeight = CGFloat(p)
+        default:
+            targetHeight = (screenBounds.height > 0 ? screenBounds.height : UIScreen.main.bounds.height) * 0.5
+        }
+    } else {
+        targetHeight = (screenBounds.height > 0 ? screenBounds.height : UIScreen.main.bounds.height) * 0.5
+    }
+
     // Container VC that will hold the Dart content view with FlexLayout.
     let containerVC = _DNBottomSheetContainerViewController()
     containerVC.rootView = dartRootView
+    containerVC.explicitBackgroundColor = explicitBg
+    containerVC.adaptToContainerBackground = adaptBg
+    containerVC.view.frame = CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight)
+    containerVC.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
 
     if let rv = dartRootView {
         containerVC.view.addSubview(rv)
         rv.frame = containerVC.view.bounds
+        rv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        containerVC.layoutRootFlex()
     }
 
     // Optionally wrap in a navigation controller for sheet routing.
@@ -430,9 +536,10 @@ public func DNBottomSheetShow(_ jsonCStr: UnsafePointer<CChar>) -> Int64 {
         sheet.prefersPageSizing = prefersPageSz
     }
 
-    // Custom scrim alpha via a subclassed presentation controller would
-    // require a custom UIPresentationController; for now we use the
-    // UIModalPresentationStyle dimming system and clamp to system default.
+    // iOS uses system dimming (no public scrimColor/alpha API).
+    // Scrim customization is Android-only by design (option A); use
+    // `largestUndimmedDetentIdentifier` (via largestUndimmedDetent) to
+    // control *whether* dimming appears.
     // TODO: custom scrimOpacity via UIPresentationController subclass.
     _ = scrimOpacity  // acknowledged; full implementation in P2
 
@@ -445,11 +552,6 @@ public func DNBottomSheetShow(_ jsonCStr: UnsafePointer<CChar>) -> Int64 {
     sheet.delegate = delegate
     presentedVC.presentationController?.delegate = delegate
     _delegates[sheetId] = delegate  // retain
-
-    guard let presenter = frontVC() else {
-        dnLog("DNBottomSheetShow: could not find front VC")
-        return rootViewId
-    }
 
     // ── Register entry synchronously so layout passes and FFI find it immediately ──
     let entry = _SheetEntry(
@@ -464,7 +566,10 @@ public func DNBottomSheetShow(_ jsonCStr: UnsafePointer<CChar>) -> Int64 {
 
     // Present asynchronously so Dart's attachRoot executes synchronously before presentation begins
     DispatchQueue.main.async {
-        presenter.present(presentedVC, animated: true, completion: nil)
+        presenter.present(presentedVC, animated: true) {
+            containerVC.layoutRootFlex()
+            fireToDart(token: sheetId, type: kEventPresented, payload: "{}")
+        }
     }
 
     return rootViewId

@@ -55,12 +55,22 @@ DNSheetController showBottomSheet(
   /// Corner radius. null = platform default (iOS: system default; Android: 28 dp M3).
   double? cornerRadius,
 
-  /// Scrim opacity (0.0–1.0). null = platform default (~0.4).
+  /// Scrim opacity (0.0–1.0). Android-only.
+  /// Prefer `DNSheetAndroidConfig(scrimColor: ...)` / `scrimOpacity`.
+  /// When both are set, the platform config wins. null = M3 default.
+  @Deprecated('Use DNSheetAndroidConfig scrimColor/scrimOpacity instead')
   double? scrimOpacity,
 
-  /// Sheet container background color. When null, the native layer
-  /// automatically adopts the child view's background color or theme default.
+  /// Sheet container background color. Honored on iOS and Android.
+  /// When null, the native layer falls back according to
+  /// [adaptToContainerBackground].
   Color? backgroundColor,
+
+  /// When true (default) and [backgroundColor] is null, the native layer
+  /// adopts the child view's background color (legacy auto-scan). When
+  /// false and [backgroundColor] is null, the platform default is used
+  /// (iOS: system background; Android: M3 container color).
+  bool adaptToContainerBackground = true,
 
   /// Whether the user can dismiss the sheet by swiping or tapping the scrim.
   /// When false, [onDismissAttempted] is called instead of dismissing.
@@ -78,6 +88,9 @@ DNSheetController showBottomSheet(
   /// Called when the sheet settles at a new detent after a drag or [DNSheetController.snapTo].
   void Function(DNSheetDetent detent)? onDetentChanged,
 
+  /// Called when the sheet completes its native presentation animation and is fully presented.
+  void Function()? onPresented,
+
   /// Called after the sheet has fully dismissed.
   void Function()? onDismissed,
 
@@ -85,8 +98,9 @@ DNSheetController showBottomSheet(
   /// Use this to show a confirmation prompt or explain why dismissal is blocked.
   void Function()? onDismissAttempted,
 
-  /// Platform-specific tuning. Pass [DNSheetPlatformConfig.ios()] or
-  /// [DNSheetPlatformConfig.android()]. Ignored on the other platform.
+  /// Platform-specific tuning. Pass [DNSheetPlatformConfig] with
+  /// `ios:` and/or `android:` leaf configs. Each side is ignored on the
+  /// other platform.
   DNSheetPlatformConfig? platformConfig,
 }) {
   assert(detents.isNotEmpty, 'showBottomSheet: detents must not be empty.');
@@ -116,13 +130,17 @@ DNSheetController showBottomSheet(
     'initialDetentIndex': detents.indexOf(resolvedInitial),
     'showGrabber': showGrabber,
     'cornerRadius': ?cornerRadius,
+    // ignore: deprecated_member_use_from_same_package
     'scrimOpacity': ?scrimOpacity,
     if (backgroundColor != null) 'backgroundColor': backgroundColor.value,
+    'adaptToContainerBackground': adaptToContainerBackground,
     'isDismissable': isDismissable,
     'scrollExpandsSheet': scrollExpandsSheet,
     'routerEnabled': routerEnabled,
-    if (platformConfig != null) 'ios': platformConfig.toJson(detents),
-    if (platformConfig != null) 'android': platformConfig.toJson(detents),
+    if (platformConfig?.ios != null)
+      'ios': platformConfig!.ios!.toJson(detents),
+    if (platformConfig?.android != null)
+      'android': platformConfig!.android!.toJson(),
   };
 
   // ── Reconciler for sheet widget tree ──────────────────────────────────────
@@ -151,6 +169,10 @@ DNSheetController showBottomSheet(
           onDetentChanged?.call(detent);
         }
 
+      case BottomSheetFFIBindings.eventPresented:
+        controller.markPresented();
+        onPresented?.call();
+
       case BottomSheetFFIBindings.eventDismissed:
         reconciler?.detachRoot();
         controller.markDismissed();
@@ -171,6 +193,9 @@ DNSheetController showBottomSheet(
       ),
     );
     BottomSheetFFIBindings.instance.layoutContent(sheetId: sheetId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      BottomSheetFFIBindings.instance.layoutContent(sheetId: sheetId);
+    });
   }
 
   return controller;

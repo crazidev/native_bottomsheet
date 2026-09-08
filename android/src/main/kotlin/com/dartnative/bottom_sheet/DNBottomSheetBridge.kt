@@ -14,11 +14,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.AndroidUiDispatcher
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.SecureFlagPolicy
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import androidx.lifecycle.findViewTreeViewModelStoreOwner
 import androidx.lifecycle.setViewTreeLifecycleOwner
@@ -41,6 +45,7 @@ private val mainHandler = Handler(Looper.getMainLooper())
 private const val EVENT_DETENT_CHANGED     = 1
 private const val EVENT_DISMISSED          = 2
 private const val EVENT_DISMISS_ATTEMPTED  = 3
+private const val EVENT_PRESENTED          = 4
 
 // ─── Active sheet entries ────────────────────────────────────────────────────
 
@@ -128,23 +133,74 @@ object DNBottomSheetBridge {
         val initIdx        = cfg.optInt("initialDetentIndex", 0)
         val showGrabber    = cfg.optBoolean("showGrabber", true)
         val cornerRadius   = if (cfg.has("cornerRadius")) cfg.getDouble("cornerRadius").toFloat() else 28f
-        val scrimOpacity   = if (cfg.has("scrimOpacity"))  cfg.getDouble("scrimOpacity").toFloat()  else 0.4f
         val isDismissable  = cfg.optBoolean("isDismissable", true)
+        val adaptBg        = cfg.optBoolean("adaptToContainerBackground", true)
         val routerEnabled  = cfg.optBoolean("routerEnabled", false)
 
         val androidCfg     = cfg.optJSONObject("android")
         val tonalElevation = androidCfg?.optDouble("tonalElevation", 0.0)?.toFloat() ?: 0f
-        val containerColorInt = if (cfg.has("backgroundColor")) {
-            cfg.getLong("backgroundColor").toInt()
-        } else {
-            androidCfg?.optInt("containerColor", -1) ?: -1
+
+        // Background precedence: top-level backgroundColor > deprecated android containerColor.
+        // -1 sentinel = no explicit color → adapt scan (if enabled) → platform default.
+        val explicitBgInt: Int? = when {
+            cfg.has("backgroundColor") -> cfg.getLong("backgroundColor").toInt()
+            androidCfg != null && androidCfg.has("containerColor") &&
+                androidCfg.optInt("containerColor", -1) != -1 ->
+                androidCfg.optInt("containerColor")
+            else -> null
         }
+
+        // Scrim precedence: android scrimColor > android scrimOpacity >
+        // deprecated top-level scrimOpacity > M3 default.
+        val scrimColorInt: Int? = if (androidCfg != null && androidCfg.has("scrimColor") &&
+            androidCfg.optLong("scrimColor", -1L) != -1L) {
+            androidCfg.optLong("scrimColor").toInt()
+        } else null
+        val scrimOpacity: Float? = when {
+            androidCfg != null && androidCfg.has("scrimOpacity") ->
+                androidCfg.optDouble("scrimOpacity").toFloat()
+            cfg.has("scrimOpacity") -> cfg.getDouble("scrimOpacity").toFloat()
+            else -> null
+        }
+        val contentColorInt: Int? = if (androidCfg != null && androidCfg.has("contentColor") &&
+            androidCfg.optLong("contentColor", -1L) != -1L) {
+            androidCfg.optLong("contentColor").toInt()
+        } else null
+        val gesturesEnabled = androidCfg?.optBoolean("sheetGesturesEnabled", true) ?: true
+        val maxWidthDp: Float? = if (androidCfg != null && androidCfg.has("sheetMaxWidthDp")) {
+            androidCfg.optDouble("sheetMaxWidthDp").toFloat()
+        } else null
+        val dismissOnBack = androidCfg?.optBoolean("shouldDismissOnBackPress", isDismissable)
+            ?: isDismissable
+        val dismissOnScrim = androidCfg?.optBoolean("shouldDismissOnClickOutside", isDismissable)
+            ?: isDismissable
+        val securePolicy = when (androidCfg?.optString("securePolicy", "inherit")) {
+            "on"  -> SecureFlagPolicy.SecureOn
+            "off" -> SecureFlagPolicy.SecureOff
+            else  -> SecureFlagPolicy.Inherit
+        }
+        val lightStatus: Boolean? = if (androidCfg != null && androidCfg.has("isAppearanceLightStatusBars")) {
+            androidCfg.optBoolean("isAppearanceLightStatusBars")
+        } else null
+        val lightNav: Boolean? = if (androidCfg != null && androidCfg.has("isAppearanceLightNavigationBars")) {
+            androidCfg.optBoolean("isAppearanceLightNavigationBars")
+        } else null
 
         val detents = (0 until detentArr.length()).map { parseDetent(detentArr.getJSONObject(it)) }
 
-        val hasOnlyLarge = detents.all { it.name == "large" || (it.type != "named" && true) }
-        val hasMedium    = detents.any { it.type == "named" && it.name == "medium" }
-        val skip         = !hasMedium
+        // SheetState anchors: PartiallyExpanded only when a medium detent exists.
+        // NOTE: rememberBottomSheetState (unified API) requires material3 1.5.0+
+        // which has no stable release yet (latest 1.5.0-alpha27); stable BOMs pin
+        // 1.4.0, so we stay on the deprecated rememberModalBottomSheetState until
+        // 1.5.0 goes stable. The legacy auto-anchor behavior is compatible here
+        // because anchors are derived from the same detent list.
+        fun isMedium(d: DetentSpec) = d.type == "named" && d.name == "medium"
+        val hasMedium = detents.any { isMedium(it) }
+        val skipPartiallyExpanded = !hasMedium
+        val hasFractionOrPixels = detents.any { it.type == "fraction" || it.type == "pixels" }
+        // "Fullscreen" = only large-named detents → the sheet should fill the whole
+        // window (including behind the status bar).
+        val isFullscreen = skipPartiallyExpanded && !hasFractionOrPixels
 
         val activity = DNAppContext.activity()
         val ctx = activity ?: DNAppContext.get()
@@ -190,8 +246,8 @@ object DNBottomSheetBridge {
                     }
 
                     val sheetState = rememberModalBottomSheetState(
-                        skipPartiallyExpanded = skip,
-                        confirmValueChange = { newValue ->
+                        skipPartiallyExpanded = skipPartiallyExpanded,
+                        confirmValueChange = { newValue: SheetValue ->
                             if (!isDismissable && newValue == SheetValue.Hidden) {
                                 fireToDart(sheetId, EVENT_DISMISS_ATTEMPTED, "{}")
                                 false
@@ -215,28 +271,32 @@ object DNBottomSheetBridge {
                         }
                     }
 
-                    // Open on first composition
+                    // Open on first composition — target the initial detent.
                     LaunchedEffect(Unit) {
-                        val entry = entryRef
-                        if (entry != null) {
-                            val targetIdx = initIdx.coerceIn(0, detents.lastIndex)
-                            val targetDetent = detents[targetIdx]
-                            if (targetDetent.name == "medium" || (!skip)) {
-                                sheetState.partialExpand()
-                            } else {
-                                sheetState.expand()
-                            }
+                        val targetIdx = initIdx.coerceIn(0, detents.lastIndex)
+                        val targetDetent = detents[targetIdx]
+                        if (isMedium(targetDetent) && hasMedium) {
+                            sheetState.partialExpand()
+                        } else {
+                            sheetState.expand()
                         }
+                        fireToDart(sheetId, EVENT_PRESENTED, "{}")
                     }
 
                     val shape = RoundedCornerShape(
                         topStart = cornerRadius.dp,
                         topEnd = cornerRadius.dp
                     )
-                    val scrim = Color.Black.copy(alpha = scrimOpacity)
+                    val scrim = when {
+                        scrimColorInt != null -> Color(scrimColorInt)
+                        scrimOpacity != null -> Color.Black.copy(alpha = scrimOpacity)
+                        else -> BottomSheetDefaults.ScrimColor
+                    }
 
-                    val defaultColor = if (containerColorInt != -1) {
-                        Color(containerColorInt)
+                    // Background precedence: explicit > adapt scan > platform default.
+                    val adaptEnabled = explicitBgInt == null && adaptBg
+                    val defaultColor = if (explicitBgInt != null) {
+                        Color(explicitBgInt)
                     } else {
                         val uiMode = (currentActivity ?: ctx).resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
                         val isSysDark = uiMode == android.content.res.Configuration.UI_MODE_NIGHT_YES
@@ -245,15 +305,17 @@ object DNBottomSheetBridge {
 
                     val dynamicBgColor = remember { mutableStateOf(defaultColor) }
 
-                    DisposableEffect(container) {
-                        container.onChildBgDetected = { bgInt ->
-                            if (containerColorInt == -1) {
+                    // Unconditional effect (rules-of-hooks safe): the gate lives
+                    // inside since all inputs are fixed for the sheet's lifetime.
+                    DisposableEffect(container, adaptEnabled) {
+                        if (adaptEnabled) {
+                            container.onChildBgDetected = { bgInt ->
                                 dynamicBgColor.value = Color(bgInt)
                             }
-                        }
-                        val immediateBg = container.detectChildBg()
-                        if (immediateBg != null && immediateBg != 0 && containerColorInt == -1) {
-                            dynamicBgColor.value = Color(immediateBg)
+                            val immediateBg = container.detectChildBg()
+                            if (immediateBg != null && immediateBg != 0) {
+                                dynamicBgColor.value = Color(immediateBg)
+                            }
                         }
                         onDispose {
                             container.onChildBgDetected = null
@@ -261,6 +323,27 @@ object DNBottomSheetBridge {
                     }
 
                     val resolvedContainerColor = dynamicBgColor.value
+                    val resolvedContentColor = if (contentColorInt != null) {
+                        Color(contentColorInt)
+                    } else {
+                        contentColorFor(resolvedContainerColor)
+                    }
+
+                    val sheetProperties = if (lightStatus != null && lightNav != null) {
+                        ModalBottomSheetProperties(
+                            isAppearanceLightStatusBars = lightStatus,
+                            isAppearanceLightNavigationBars = lightNav,
+                            securePolicy = securePolicy,
+                            shouldDismissOnBackPress = dismissOnBack,
+                            shouldDismissOnClickOutside = dismissOnScrim,
+                        )
+                    } else {
+                        ModalBottomSheetProperties(
+                            securePolicy = securePolicy,
+                            shouldDismissOnBackPress = dismissOnBack,
+                            shouldDismissOnClickOutside = dismissOnScrim,
+                        )
+                    }
 
                     ModalBottomSheet(
                         onDismissRequest = {
@@ -278,8 +361,11 @@ object DNBottomSheetBridge {
                             fireToDart(sheetId, EVENT_DISMISSED, "{}")
                         },
                         sheetState = sheetState,
+                        sheetMaxWidth = maxWidthDp?.dp ?: BottomSheetDefaults.SheetMaxWidth,
+                        sheetGesturesEnabled = gesturesEnabled,
                         shape = shape,
                         containerColor = resolvedContainerColor,
+                        contentColor = resolvedContentColor,
                         scrimColor = scrim,
                         tonalElevation = tonalElevation.dp,
                         dragHandle = if (showGrabber) {
@@ -294,16 +380,38 @@ object DNBottomSheetBridge {
                                 )
                             }
                         } else null,
-                        windowInsets = WindowInsets.navigationBars,
+                        properties = sheetProperties,
                     ) {
-                        val modContent = when {
+                        // When fullscreen, make the ModalBottomSheet dialog window
+                        // edge-to-edge so the sheet can extend behind the status bar.
+                        // Inside a ModalBottomSheet, LocalView.current.parent is the
+                        // Compose DialogWindowProvider which wraps the dialog Window.
+                        val dialogRootView = LocalView.current
+                        SideEffect {
+                            if (isFullscreen) {
+                                val window = (dialogRootView.parent as? DialogWindowProvider)?.window
+                                window?.let { w ->
+                                    WindowCompat.setDecorFitsSystemWindows(w, false)
+                                }
+                            }
+                        }
+
+                    val modContent = when {
                             detents.any { it.type == "fraction" } ->
                                 Modifier.fillMaxHeight(detents.first { it.type == "fraction" }.value.toFloat())
                             detents.any { it.type == "pixels" } ->
                                 Modifier.height(detents.first { it.type == "pixels" }.value.dp)
+                            isFullscreen -> Modifier.fillMaxSize()
                             else -> Modifier.wrapContentHeight()
                         }
-                        Box(modifier = modContent.fillMaxWidth()) {
+                        Box(
+                            modifier = modContent
+                                .fillMaxWidth()
+                                .then(
+                                    if (isFullscreen) Modifier.statusBarsPadding()
+                                    else Modifier
+                                )
+                        ) {
                             AndroidView(
                                 factory = {
                                     (container.parent as? ViewGroup)?.removeView(container)
@@ -330,7 +438,7 @@ object DNBottomSheetBridge {
                             composeView = this@apply,
                             container = container,
                             rootViewId = rootViewId,
-                            skipPartiallyExpanded = skip,
+                            skipPartiallyExpanded = skipPartiallyExpanded,
                         )
                         entryRef = entry
                         activeSheets[sheetId] = entry
@@ -399,7 +507,7 @@ object DNBottomSheetBridge {
             val detent = entry.detents.getOrNull(detentIndex) ?: return@post
             entry.scope.launch {
                 when {
-                    detent.name == "medium" -> entry.sheetState.partialExpand()
+                    detent.type == "named" && detent.name == "medium" -> entry.sheetState.partialExpand()
                     else                   -> entry.sheetState.expand()
                 }
             }

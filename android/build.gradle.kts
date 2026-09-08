@@ -31,7 +31,11 @@ android {
 dependencies {
     compileOnly(project(":dartnative_android"))
     // Compose BOM — aligns all Compose library versions
-    implementation(platform("androidx.compose:compose-bom:2024.04.00"))
+    // NOTE: newest stable BOM is 2026.08.00, but it pulls Compose 1.12.0 which
+    // requires compileSdk 37 + AGP 9.1.0. Stay on 2026.06.00 until the host
+    // app toolchain moves to 37. Still ships material3 1.4.0 (has every API
+    // used here except rememberBottomSheetState, which needs 1.5.0+).
+    implementation(platform("androidx.compose:compose-bom:2026.06.00"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-viewbinding")

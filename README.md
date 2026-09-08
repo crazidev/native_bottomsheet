@@ -12,8 +12,10 @@ Native bottom sheets for DartNative — `UISheetPresentationController` on iOS 1
 | Non-dismissable + attempt callback | ✅ `isModalInPresentation` + `didAttemptToDismiss` | ✅ `confirmValueChange` veto |
 | Programmatic snap / dismiss | ✅ `animateChanges` | ✅ `partialExpand()` / `expand()` / `hide()` |
 | In-sheet navigation | ✅ `UINavigationController` (`routerEnabled`) | ⚠️ Stub — logs warning (planned) |
-| Custom scrim opacity | ⚠️ Acknowledged, system dimming used | ✅ `scrimColor` |
-| Corner radius / colors / elevation | Partial (corner radius yes) | ✅ `shape`, `containerColor`, `tonalElevation` |
+| Custom scrim color / opacity | System dimming only (use `largestUndimmedDetent` to toggle dimming per detent) | ✅ `scrimColor` / `scrimOpacity` in `DNSheetAndroidConfig` |
+| Sheet background | ✅ `backgroundColor`, or auto-adopt child bg when `adaptToContainerBackground` (default true) | ✅ same (`containerColor`) |
+| Corner radius / elevation | Partial (corner radius yes) | ✅ `cornerRadius`, `tonalElevation`, `contentColor`, `sheetGesturesEnabled`, `sheetMaxWidthDp` |
+| Dismiss behavior | ✅ `isDismissable` | ✅ `isDismissable` + `shouldDismissOnBackPress` / `shouldDismissOnClickOutside`, `securePolicy`, light status/nav bars |
 
 See [iOS fallback behavior](#ios-15-fallbacks) and [out of scope](#out-of-scope) below.
 
@@ -137,21 +139,25 @@ controller.dismiss();
 showBottomSheet(
   context,
   builder: (ctx, ctrl) => MyContent(),
-  platformConfig: DNSheetPlatformConfig.ios(
-    largestUndimmedDetent: DNSheetDetent.medium, // content behind sheet not dimmed up to medium
-    edgeAttachedInCompactHeight: true,           // landscape bottom-edge attach
-    prefersPageSizing: false,
+  // Explicit background on both platforms; when null + adaptToContainerBackground
+  // (default true), the sheet adopts the child view's background color.
+  backgroundColor: const Color(0xFF1C1C1E),
+  platformConfig: DNSheetPlatformConfig(
+    ios: DNSheetIOSConfig(
+      largestUndimmedDetent: DNSheetDetent.medium, // content behind sheet not dimmed up to medium
+      edgeAttachedInCompactHeight: true,           // landscape bottom-edge attach
+      prefersPageSizing: false,
+    ),
+    android: DNSheetAndroidConfig(
+      tonalElevation: 2.0,
+      scrimColor: 0x99000000, // 0xAARRGGBB (Android-only; iOS uses system dimming)
+      shouldDismissOnClickOutside: false,
+    ),
   ),
 );
-
-// Android
-platformConfig: DNSheetPlatformConfig.android(
-  tonalElevation: 2.0,
-  containerColor: 0xFF1C1C1E, // 0xAARRGGBB
-),
 ```
 
-The config for the other platform is silently ignored. Other cross-platform options: `cornerRadius`, `scrimOpacity` (fully applied on Android; iOS currently uses system dimming), `scrollExpandsSheet`.
+Each side is ignored on the other platform. Other cross-platform options: `cornerRadius`, `scrollExpandsSheet` (iOS `prefersScrollingExpandsWhenScrolledToEdge`; Android uses default nested-scroll behavior).
 
 ### In-sheet navigation
 

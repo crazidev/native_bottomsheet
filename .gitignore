@@ -51,3 +51,4 @@ local.properties
 **/android/app/profile
 **/android/app/release
 android/.cxx/*
+example/flutter_*.png

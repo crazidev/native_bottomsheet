@@ -1,11 +1,12 @@
 import 'package:dartnative/dartnative.dart';
 import 'package:dartnative/flutter_compat.dart';
-import 'package:dartnative_android/dartnative_android.dart';
 import 'package:dartnative_bottom_sheet/dartnative_bottom_sheet.dart';
 import 'package:example/component/adjust_detent_sheet.dart';
 import 'package:example/component/fit_content_sheet.dart';
 import 'package:example/component/input_sheet.dart';
 import 'package:example/component/prevent_close_sheet.dart';
+import 'package:example/component/scrollable_sheet.dart';
+import 'package:example/component/stacked_sheet.dart';
 
 import 'dartnative_plugin_registrant.dart';
 
@@ -22,7 +23,6 @@ void main() {
 
   DartNativeLogger.run(
     () {
-      registerNativeBindings(AndroidNativeBindings.instance);
       runApp(const BottomSheetExampleApp());
     },
     verbose: true, // framework-internal diagnostics
@@ -44,9 +44,9 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
   DNSheetController? _currentActiveSheet;
 
   void _updateStatus(String message) {
-    setState(() {
-      _lastEvent = message;
-    });
+    _lastEvent = message;
+    // ignore: avoid_print
+    print('[BottomSheetExample] $_lastEvent (activeSheet: ${_currentActiveSheet != null})');
   }
 
   // ── 1. Fit to Content ───────────────────────────────────────────────────────
@@ -83,6 +83,7 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
         controller: ctrl,
         onSubmit: (text) => _updateStatus('Input submitted: "$text"'),
       ),
+      platformConfig: DNSheetPlatformConfig.ios(),
       onDetentChanged: (d) => _updateStatus('Input sheet detent: ${d.label}'),
       onDismissed: () {
         _updateStatus('Input sheet dismissed');
@@ -149,6 +150,49 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
     );
   }
 
+  // ── 5. Scrollable Content ────────────────────────────────────────────────
+  void _openScrollableSheet() {
+    _updateStatus('Opening Scrollable sheet...');
+    _currentActiveSheet = showBottomSheet(
+      context,
+      detents: const [DNSheetDetent.medium, DNSheetDetent.large],
+      initialDetent: DNSheetDetent.medium,
+      showGrabber: true,
+      platformConfig: DNSheetPlatformConfig(
+        android: DNSheetAndroidConfig(),
+        ios: DNSheetIOSConfig(edgeAttachedInCompactHeight: true),
+      ),
+      scrollExpandsSheet: true,
+      builder: (ctx, ctrl) => ScrollableSheet(
+        controller: ctrl,
+        onSnapRequested: (label) =>
+            _updateStatus('Programmatic snap to: $label'),
+      ),
+      onDetentChanged: (d) => _updateStatus('Scrollable detent: ${d.label}'),
+      onDismissed: () {
+        _updateStatus('Scrollable sheet dismissed');
+        setState(() => _currentActiveSheet = null);
+      },
+    );
+  }
+
+  // ── 6. Stacked Sheet ───────────────────────────────────────────────────────
+  void _openStackedSheet() {
+    _updateStatus('Opening Stacked sheet...');
+    _currentActiveSheet = showBottomSheet(
+      context,
+      detents: const [DNSheetDetent.medium, DNSheetDetent.large],
+      initialDetent: DNSheetDetent.medium,
+      showGrabber: true,
+      builder: (ctx, ctrl) => StackedSheet(controller: ctrl, level: 1),
+      onDetentChanged: (d) => _updateStatus('Stacked sheet detent: ${d.label}'),
+      onDismissed: () {
+        _updateStatus('Stacked sheet dismissed');
+        setState(() => _currentActiveSheet = null);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -165,8 +209,9 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
         ),
         centerTitle: true,
       ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      body: Column(
+        // padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Section 1: Fit Content
           TestCaseCard(
@@ -210,6 +255,28 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
             buttonColor: const Color(0xFFFF9500),
             onTap: _openPreventCloseSheet,
           ),
+          const SizedBox(height: 14),
+
+          // Section 5: Scrollable Content
+          TestCaseCard(
+            title: 'Scrollable Content',
+            description:
+                '60 rows in a fixed-height list. Scroll inside the sheet, snap between medium/large, and test scroll-expands-sheet at the list edge.',
+            buttonText: 'Test Scrollable Sheet',
+            buttonColor: const Color(0xFF30B0C7),
+            onTap: _openScrollableSheet,
+          ),
+          const SizedBox(height: 14),
+
+          // Section 6: Stacked Sheet
+          TestCaseCard(
+            title: 'Stacked Sheet',
+            description:
+                'Open a bottom sheet from within another bottom sheet to test stacked rendering and gesture resolution.',
+            buttonText: 'Test Stacked Sheet',
+            buttonColor: const Color(0xFFFF6B35),
+            onTap: _openStackedSheet,
+          ),
           const SizedBox(height: 30),
         ],
       ),
@@ -238,63 +305,10 @@ class TestCaseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E5EA)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1C1C1E),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          // Text(
-          //   description,
-          //   style: const TextStyle(
-          //     fontSize: 13,
-          //     color: Color(0xFF636366),
-          //     height: 1.35,
-          //   ),
-          // ),
-          // const SizedBox(height: 14),
-          GestureDetector(
-            onTap: onTap,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: buttonColor,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Center(
-                child: Text(
-                  buttonText,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+    return Column(
+      children: [
+        Button(title: title, child: Text(description), onPressed: onTap),
+      ],
     );
   }
 }

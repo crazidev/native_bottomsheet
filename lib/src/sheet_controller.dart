@@ -16,6 +16,8 @@ class DNSheetController {
 
   DNSheetDetent? _currentDetent;
   bool _isVisible = true;
+  bool _isPresented = false;
+  final List<void Function()> _presentedListeners = [];
 
   // ── Observing state ───────────────────────────────────────────────────────
 
@@ -28,6 +30,24 @@ class DNSheetController {
 
   /// True if the sheet is currently visible (presenting or settled at a detent).
   bool get isVisible => _isVisible;
+
+  /// True if the sheet has finished its native presentation animation and settled.
+  bool get isPresented => _isPresented;
+
+  /// Adds a listener invoked as soon as the sheet finishes its native presentation animation.
+  /// If the sheet has already presented, the callback is invoked immediately.
+  void addPresentedListener(void Function() listener) {
+    if (_isPresented) {
+      listener();
+    } else {
+      _presentedListeners.add(listener);
+    }
+  }
+
+  /// Removes a listener previously added with [addPresentedListener].
+  void removePresentedListener(void Function() listener) {
+    _presentedListeners.remove(listener);
+  }
 
   // ── Programmatic control ──────────────────────────────────────────────────
 
@@ -112,6 +132,13 @@ class DNSheetController {
   // ── Internal (called from show_bottom_sheet.dart in same library) ───────────
 
   void updateDetent(DNSheetDetent detent) => _currentDetent = detent;
+  void markPresented() {
+    if (_isPresented) return;
+    _isPresented = true;
+    for (final cb in List.of(_presentedListeners)) {
+      cb();
+    }
+  }
   void markDismissed() {
     _isVisible = false;
     _currentDetent = null;
