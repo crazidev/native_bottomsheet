@@ -54,7 +54,7 @@ class FitContentSheetState extends State<FitContentSheet> {
   Widget build(BuildContext context) {
     return Container(
       color: const Color(0xFF18181A),
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
       height: _currentHeight,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -84,99 +84,101 @@ class FitContentSheetState extends State<FitContentSheet> {
                   ),
                 ],
               ),
-              IconButton(
-                onPressed: () => widget.controller.dismiss(),
-                icon: const Icon(
-                  CupertinoIcons.xmark_circle_fill,
-                  color: Colors.white60,
-                  size: 24,
+              GlassEffectContainer(
+                style: GlassStyle.regular,
+                borderRadius: BorderRadius.circular(100),
+                child: IconButton(
+                  onPressed: () => widget.controller.dismiss(),
+                  icon: const Icon(
+                    CupertinoIcons.xmark_1,
+                    color: Colors.white60,
+                    size: 24,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
           const Text(
-            'The sheet detent automatically adapts to its intrinsic height. Tap the button below to cycle sizes smoothly.',
+            'The sheet detend.fitContain() adapts the bottomsheet height to the content size.',
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 16,
               color: Color(0xFFA1A1AA),
               height: 1.35,
             ),
           ),
           const SizedBox(height: 14),
-          GestureDetector(
-            onTap: _cycleHeight,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF34C759),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Center(
-                child: Text(
-                  'Toggle Next Size (Step ${(_expansionStep + 1) % 3})',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Button(
+                  onPressed: _cycleHeight,
+                  child: Text(
+                    'Toggle Next Size (Step ${(_expansionStep + 1) % 3})',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
+                if (_expansionStep >= 1) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF27272A),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          CupertinoIcons.checkmark_seal_fill,
+                          color: Color(0xFF34C759),
+                          size: 18,
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Auto-animation triggered! Height expanded to 330px.',
+                            style: TextStyle(fontSize: 12, color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                if (_expansionStep == 2) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF27272A),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          CupertinoIcons.sparkles,
+                          color: Color(0xFFFFD60A),
+                          size: 18,
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Max step reached!',
+                            style: TextStyle(fontSize: 12, color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-          if (_expansionStep >= 1) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF27272A),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Row(
-                children: [
-                  Icon(
-                    CupertinoIcons.checkmark_seal_fill,
-                    color: Color(0xFF34C759),
-                    size: 18,
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Auto-animation triggered! Height expanded to 330px.',
-                      style: TextStyle(fontSize: 12, color: Colors.white),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          if (_expansionStep == 2) ...[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF27272A),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Row(
-                children: [
-                  Icon(
-                    CupertinoIcons.sparkles,
-                    color: Color(0xFFFFD60A),
-                    size: 18,
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Max step reached! Notice zero bottom padding artifacts.',
-                      style: TextStyle(fontSize: 12, color: Colors.white),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ],
       ),
     );

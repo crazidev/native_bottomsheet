@@ -1,9 +1,12 @@
-import 'package:dartnative/dartnative.dart';
+import 'package:dartnative/flutter_compat.dart';
 import 'package:dartnative_bottom_sheet/dartnative_bottom_sheet.dart';
-import 'package:example/component/dartnative_plugin_registrant.dart';
 
 class InputSheet extends StatefulWidget {
-  const InputSheet({required this.controller, required this.onSubmit});
+  const InputSheet({
+    required this.controller,
+    required this.onSubmit,
+    super.key,
+  });
 
   final DNSheetController controller;
   final void Function(String text) onSubmit;
@@ -14,164 +17,176 @@ class InputSheet extends StatefulWidget {
 
 class InputSheetState extends State<InputSheet> {
   final TextEditingController _textController = TextEditingController();
-  String _livePreview = '';
+  bool _hasText = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _textController.addListener(_onTextChanged);
+  }
+
+  @override
+  void dispose() {
+    _textController.removeListener(_onTextChanged);
+    _textController.dispose();
+    super.dispose();
+  }
+
+  void _onTextChanged() {
+    final hasText = _textController.text.trim().isNotEmpty;
+    if (hasText != _hasText) {
+      setState(() {
+        _hasText = hasText;
+      });
+    }
+  }
+
+  void _submit() {
+    final text = _textController.text.trim();
+    if (text.isNotEmpty) {
+      widget.onSubmit(text);
+      widget.controller.dismiss();
+    }
+  }
+
+  void _prefill(String text) {
+    _textController.text = text;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF1C1C1E),
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 30),
+      color: const Color(0xFF161618),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // Top bar with close button
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              const Text(
-                'Sheet with Input',
-                style: TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
               IconButton(
                 onPressed: () => widget.controller.dismiss(),
                 icon: const Icon(
                   CupertinoIcons.xmark_circle_fill,
-                  color: Colors.white60,
+                  color: Color(0x998E8E93),
                   size: 24,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
+
+          // Center: AI Icon & Title
+          Container(
+            width: 60,
+            height: 60,
+            decoration: const BoxDecoration(shape: BoxShape.circle),
+            child: const Center(
+              child: Icon(
+                MaterialSymbolsRounded.robot_2,
+                color: Colors.white,
+                size: 60,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           const Text(
-            'Test native keyboard interaction, focus transitions, and text inputs inside the sheet.',
-            style: TextStyle(fontSize: 13, color: Color(0xFF8E8E93)),
+            'Native Bottomsheet',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              letterSpacing: -0.3,
+            ),
           ),
-          const SizedBox(height: 16),
+          Text("Powered by DartNative"),
+          const SizedBox(height: 40),
+          Spacer(),
 
-          // Native TextField
+          // Sticky Bottom Input bar with buttons
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              color: const Color(0xFF2C2C2E),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFF3A3A3C)),
+              color: const Color(0xFF242426),
+              borderRadius: BorderRadius.circular(24),
             ),
-            child: TextField(
-              controller: _textController,
-              style: const TextStyle(color: Colors.white, fontSize: 15),
-              cursorColor: const Color(0xFF007AFF),
-              decoration: const InputDecoration(
-                hintText: 'Type your message or notes here...',
-                hintStyle: TextStyle(color: Color(0xFF8E8E93), fontSize: 14),
-                border: InputBorder.none,
-              ),
-              onChanged: (text) {
-                setState(() {
-                  _livePreview = text;
-                });
-              },
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // Quick pre-fills
-          Row(
-            children: [
-              QuickChip(
-                label: 'Quick Feedback',
-                onTap: () {
-                  _textController.text = 'Great bottom sheet performance! 🚀';
-                  setState(() => _livePreview = _textController.text);
-                },
-              ),
-              const SizedBox(width: 8),
-              QuickChip(
-                label: 'Bug Report',
-                onTap: () {
-                  _textController.text =
-                      'Detent snapped perfectly with no glitches.';
-                  setState(() => _livePreview = _textController.text);
-                },
-              ),
-              const SizedBox(width: 8),
-              QuickChip(
-                label: 'Clear',
-                onTap: () {
-                  _textController.clear();
-                  setState(() => _livePreview = '');
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Live Preview
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2C2C2E),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                const Text(
-                  'Live Preview:',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF007AFF),
+                // Voice input button
+                GestureDetector(
+                  onTap: () => _prefill('Voice prompt query'),
+                  child: const Icon(
+                    CupertinoIcons.mic_fill,
+                    color: Color(0xFF8E8E93),
+                    size: 20,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  _livePreview.isEmpty ? '(Nothing typed yet)' : _livePreview,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: _livePreview.isEmpty
-                        ? const Color(0xFF8E8E93)
-                        : Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
+                const SizedBox(width: 10),
 
-          // Action Buttons
-          Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    widget.onSubmit(_textController.text);
-                    widget.controller.dismiss();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF007AFF),
-                      borderRadius: BorderRadius.circular(10),
+                // Native TextField
+                Expanded(
+                  child: TextField(
+                    controller: _textController,
+                    style: const TextStyle(color: Colors.white, fontSize: 15),
+                    cursorColor: const Color(0xFFA855F7),
+                    decoration: const InputDecoration(
+                      hintText: 'Ask AI anything...',
+                      hintStyle: TextStyle(
+                        color: Color(0xFF8E8E93),
+                        fontSize: 16,
+                      ),
+                      border: InputBorder.none,
                     ),
-                    child: const Center(
-                      child: Text(
-                        'Submit & Close',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _submit(),
+                  ),
+                ),
+
+                // Clear button (shown when text is present)
+                if (_hasText) ...[
+                  GestureDetector(
+                    onTap: () => _textController.clear(),
+                    child: const Icon(
+                      CupertinoIcons.xmark_circle_fill,
+                      color: Color(0xFF8E8E93),
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+
+                // Send / Submit button
+                GestureDetector(
+                  onTap: _hasText ? _submit : null,
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: _hasText
+                          ? const LinearGradient(
+                              colors: [Color(0xFF6366F1), Color(0xFFA855F7)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : null,
+                      color: _hasText ? null : const Color(0xFF3A3A3C),
+                    ),
+                    child: Center(
+                      child: Icon(
+                        CupertinoIcons.arrow_up,
+                        color: _hasText
+                            ? Colors.white
+                            : const Color(0xFF8E8E93),
+                        size: 16,
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

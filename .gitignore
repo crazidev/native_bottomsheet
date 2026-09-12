@@ -51,4 +51,10 @@ local.properties
 **/android/app/profile
 **/android/app/release
 android/.cxx/*
+android/gradle/
+android/gradlew
+android/gradlew.bat
 example/flutter_*.png
+
+# Submodules / separate repositories
+dartnative_analyzer_plugin/

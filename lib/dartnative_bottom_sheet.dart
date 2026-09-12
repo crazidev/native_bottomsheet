@@ -24,5 +24,4 @@ export 'src/sheet_detent.dart';
 export 'src/sheet_controller.dart';
 export 'src/sheet_platform_config.dart';
 export 'src/show_bottom_sheet.dart';
-export 'src/sheet_list.dart';
 export 'src/ffi_bindings.dart' show BottomSheetFFIBindings;

@@ -120,19 +120,35 @@ DNSheetController showBottomSheet(
     resolvedInitial = detents.first;
   }
 
-  final controller = DNSheetController.create(sheetId: sheetId, detents: detents);
+  final controller = DNSheetController.create(
+    sheetId: sheetId,
+    detents: detents,
+    initialDetent: resolvedInitial,
+  );
 
   // ── Build JSON payload ────────────────────────────────────────────────────
+
+  Widget? initialChild;
+  Color? resolvedBg = backgroundColor;
+  if (resolvedBg == null && adaptToContainerBackground) {
+    try {
+      initialChild = builder(context, controller);
+      if (initialChild is Container && initialChild.color != null) {
+        resolvedBg = initialChild.color;
+      }
+    } catch (_) {}
+  }
 
   final payload = <String, dynamic>{
     'sheetId': sheetId,
     'detents': detents.map((d) => d.toJson()).toList(),
     'initialDetentIndex': detents.indexOf(resolvedInitial),
     'showGrabber': showGrabber,
+    'floatingGrabber': platformConfig?.android?.floatingGrabber ?? true,
     'cornerRadius': ?cornerRadius,
     // ignore: deprecated_member_use_from_same_package
     'scrimOpacity': ?scrimOpacity,
-    if (backgroundColor != null) 'backgroundColor': backgroundColor.value,
+    if (resolvedBg != null) 'backgroundColor': resolvedBg.value,
     'adaptToContainerBackground': adaptToContainerBackground,
     'isDismissable': isDismissable,
     'scrollExpandsSheet': scrollExpandsSheet,
@@ -189,7 +205,7 @@ DNSheetController showBottomSheet(
     reconciler.attachRoot(
       _DNSheetHotReloadObserver(
         sheetId: sheetId,
-        child: builder(context, controller),
+        child: initialChild ?? builder(context, controller),
       ),
     );
     BottomSheetFFIBindings.instance.layoutContent(sheetId: sheetId);

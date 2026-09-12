@@ -5,6 +5,7 @@ import 'package:example/component/adjust_detent_sheet.dart';
 import 'package:example/component/fit_content_sheet.dart';
 import 'package:example/component/input_sheet.dart';
 import 'package:example/component/prevent_close_sheet.dart';
+import 'package:example/component/routed_frameworks_sheet.dart';
 import 'package:example/component/scrollable_sheet.dart';
 import 'package:example/component/stacked_sheet.dart';
 
@@ -25,8 +26,8 @@ void main() {
     () {
       runApp(const BottomSheetExampleApp());
     },
-    verbose: true, // framework-internal diagnostics
-    saveToFile: true, // persist every session to a log file
+    verbose: false, // framework-internal diagnostics
+    saveToFile: false, // persist every session to a log file
   );
   // runApp(const BottomSheetExampleApp());
 }
@@ -46,7 +47,9 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
   void _updateStatus(String message) {
     _lastEvent = message;
     // ignore: avoid_print
-    print('[BottomSheetExample] $_lastEvent (activeSheet: ${_currentActiveSheet != null})');
+    print(
+      '[BottomSheetExample] $_lastEvent (activeSheet: ${_currentActiveSheet != null})',
+    );
   }
 
   // ── 1. Fit to Content ───────────────────────────────────────────────────────
@@ -57,6 +60,7 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
       detents: const [DNSheetDetent.contentFit],
       initialDetent: DNSheetDetent.contentFit,
       showGrabber: true,
+      backgroundColor: const Color(0xFF18181A),
       platformConfig: DNSheetPlatformConfig.android(),
       builder: (ctx, ctrl) => FitContentSheet(
         controller: ctrl,
@@ -76,9 +80,10 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
     _updateStatus('Opening Sheet with Input...');
     _currentActiveSheet = showBottomSheet(
       context,
-      detents: const [DNSheetDetent.medium, DNSheetDetent.large],
-      initialDetent: DNSheetDetent.medium,
+      detents: const [DNSheetDetent.contentFit, DNSheetDetent.large],
+      initialDetent: DNSheetDetent.contentFit,
       showGrabber: true,
+      backgroundColor: const Color(0xFF1C1C1E),
       builder: (ctx, ctrl) => InputSheet(
         controller: ctrl,
         onSubmit: (text) => _updateStatus('Input submitted: "$text"'),
@@ -102,7 +107,7 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
         DNSheetDetent.medium,
         DNSheetDetent.large,
       ],
-      initialDetent: DNSheetDetent.fraction(0.35),
+      initialDetent: DNSheetDetent.large,
       showGrabber: true,
       builder: (ctx, ctrl) => AdjustDetentSheet(
         controller: ctrl,
@@ -127,6 +132,7 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
       initialDetent: DNSheetDetent.medium,
       isDismissable: false,
       showGrabber: true,
+      backgroundColor: const Color(0xFF1C1C1E),
       builder: (ctx, ctrl) => PreventCloseSheet(
         controller: ctrl,
         attemptCount: _attemptCount,
@@ -158,8 +164,12 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
       detents: const [DNSheetDetent.medium, DNSheetDetent.large],
       initialDetent: DNSheetDetent.medium,
       showGrabber: true,
+      backgroundColor: const Color(0xFF141416),
       platformConfig: DNSheetPlatformConfig(
-        android: DNSheetAndroidConfig(),
+        android: DNSheetAndroidConfig(
+          isAppearanceLightStatusBars: false,
+          floatingGrabber: false,
+        ),
         ios: DNSheetIOSConfig(edgeAttachedInCompactHeight: true),
       ),
       scrollExpandsSheet: true,
@@ -184,10 +194,29 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
       detents: const [DNSheetDetent.medium, DNSheetDetent.large],
       initialDetent: DNSheetDetent.medium,
       showGrabber: true,
+      backgroundColor: const Color(0xFF1C1C1E),
       builder: (ctx, ctrl) => StackedSheet(controller: ctrl, level: 1),
       onDetentChanged: (d) => _updateStatus('Stacked sheet detent: ${d.label}'),
       onDismissed: () {
         _updateStatus('Stacked sheet dismissed');
+        setState(() => _currentActiveSheet = null);
+      },
+    );
+  }
+
+  // ── 7. Router & Framework Search Sheet ────────────────────────────────────
+  void _openRoutedFrameworksSheet() {
+    _updateStatus('Opening Router & Framework Search sheet...');
+    _currentActiveSheet = showBottomSheet(
+      context,
+      detents: const [DNSheetDetent.large],
+      initialDetent: DNSheetDetent.large,
+      showGrabber: true,
+      routerEnabled: true,
+      backgroundColor: const Color(0xFF141416),
+      builder: (ctx, ctrl) => RoutedFrameworksSheet(controller: ctrl),
+      onDismissed: () {
+        _updateStatus('Router sheet dismissed');
         setState(() => _currentActiveSheet = null);
       },
     );
@@ -200,9 +229,9 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
       brightness: Brightness.light,
       appBar: AppBar(
         title: const Text(
-          'BottomSheet Examples',
+          'Dart Native',
           style: TextStyle(
-            color: Color(0xFF111111),
+            color: Colors.black,
             fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
@@ -215,7 +244,7 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
         children: [
           // Section 1: Fit Content
           TestCaseCard(
-            title: 'Fit to Content',
+            title: 'Fit content',
             description:
                 'Auto-measures intrinsic content height using Yoga. Dynamically expands or collapses size on state mutation.',
             buttonText: 'Test Fit to Content',
@@ -277,6 +306,17 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
             buttonColor: const Color(0xFFFF6B35),
             onTap: _openStackedSheet,
           ),
+          const SizedBox(height: 14),
+
+          // Section 7: Router & Framework Search
+          TestCaseCard(
+            title: 'Navigation Sheet',
+            description:
+                'Full sheet with Scaffold, action button, close button, in-sheet routing, and a searchable list of popular Dart frameworks.',
+            buttonText: 'Test Router Sheet',
+            buttonColor: const Color(0xFF007AFF),
+            onTap: _openRoutedFrameworksSheet,
+          ),
           const SizedBox(height: 30),
         ],
       ),
@@ -326,12 +366,14 @@ class SnapButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    var state = CustomState<String>(isSelected: true, name: "Unknown");
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isSelected
+          color: state.isSelected
               ? const Color(0xFF5856D6).withOpacity(0.25)
               : const Color(0xFF242426),
           borderRadius: BorderRadius.circular(10),
@@ -340,34 +382,68 @@ class SnapButton extends StatelessWidget {
             width: 1.5,
           ),
         ),
-        child: Row(
-          children: [
-            Icon(
-              isSelected
-                  ? CupertinoIcons.checkmark_circle_fill
-                  : CupertinoIcons.circle,
-              color: isSelected ? const Color(0xFF5856D6) : Colors.white38,
-              size: 20,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+        child: NewWidget(isSelected: isSelected, expanded: expanded),
       ),
+    );
+  }
+
+  Expanded expanded() {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class CustomState<T> {
+  final String name;
+  final bool isSelected;
+
+  CustomState({required this.name, required this.isSelected});
+
+  CustomState<T> copyWith({String? name, bool? isSelected}) {
+    return CustomState<T>(
+      name: name ?? this.name,
+      isSelected: isSelected ?? this.isSelected,
+    );
+  }
+}
+
+class NewWidget extends StatelessWidget {
+  const NewWidget({
+    super.key,
+    required this.isSelected,
+    required this.expanded,
+  });
+
+  final bool isSelected;
+  final dynamic expanded;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(
+          isSelected
+              ? CupertinoIcons.checkmark_circle_fill
+              : CupertinoIcons.circle,
+          color: isSelected ? const Color(0xFF5856D6) : Colors.white38,
+          size: 20,
+        ),
+        const SizedBox(width: 12),
+        expanded(),
+      ],
     );
   }
 }

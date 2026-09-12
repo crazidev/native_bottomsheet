@@ -98,6 +98,11 @@ class DNSheetAndroidConfig {
 
     /// Navigation-bar icon contrast on the sheet window. null = system default.
     this.isAppearanceLightNavigationBars,
+
+    /// Whether the grabber handle floats over the top edge of the sheet content
+    /// (matching iOS UIKit behavior) rather than reserving 48dp of vertical
+    /// space in a separate column above the content. Defaults to true.
+    this.floatingGrabber = true,
   });
 
   final double? tonalElevation;
@@ -113,6 +118,7 @@ class DNSheetAndroidConfig {
   final DNSecureFlagPolicy? securePolicy;
   final bool? isAppearanceLightStatusBars;
   final bool? isAppearanceLightNavigationBars;
+  final bool floatingGrabber;
 
   Map<String, dynamic> toJson() {
     return {
@@ -129,6 +135,7 @@ class DNSheetAndroidConfig {
       'securePolicy': securePolicy?.name,
       'isAppearanceLightStatusBars': isAppearanceLightStatusBars,
       'isAppearanceLightNavigationBars': isAppearanceLightNavigationBars,
+      'floatingGrabber': floatingGrabber,
     };
   }
 }
@@ -188,6 +195,7 @@ class DNSheetPlatformConfig {
     DNSecureFlagPolicy? securePolicy,
     bool? isAppearanceLightStatusBars,
     bool? isAppearanceLightNavigationBars,
+    bool floatingGrabber = true,
   }) {
     return DNSheetPlatformConfig(
       android: DNSheetAndroidConfig(
@@ -204,6 +212,7 @@ class DNSheetPlatformConfig {
         securePolicy: securePolicy,
         isAppearanceLightStatusBars: isAppearanceLightStatusBars,
         isAppearanceLightNavigationBars: isAppearanceLightNavigationBars,
+        floatingGrabber: floatingGrabber,
       ),
     );
   }

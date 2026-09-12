@@ -9,7 +9,10 @@ class DNSheetController {
   DNSheetController.create({
     required this._sheetId,
     required List<DNSheetDetent> detents,
-  }) : _detents = List.unmodifiable(detents);
+    DNSheetDetent? initialDetent,
+  }) : _detents = List.unmodifiable(detents),
+       _currentDetent =
+           initialDetent ?? (detents.isNotEmpty ? detents.first : null);
 
   final int _sheetId;
   final List<DNSheetDetent> _detents;
@@ -18,6 +21,9 @@ class DNSheetController {
   bool _isVisible = true;
   bool _isPresented = false;
   final List<void Function()> _presentedListeners = [];
+  final List<void Function(DNSheetDetent detent)> _detentListeners = [];
+  final List<void Function(Object page)> _pushListeners = [];
+  final List<void Function()> _popListeners = [];
 
   // ── Observing state ───────────────────────────────────────────────────────
 
@@ -47,6 +53,36 @@ class DNSheetController {
   /// Removes a listener previously added with [addPresentedListener].
   void removePresentedListener(void Function() listener) {
     _presentedListeners.remove(listener);
+  }
+
+  /// Adds a listener invoked whenever the sheet settles at a new detent.
+  void addDetentListener(void Function(DNSheetDetent detent) listener) {
+    _detentListeners.add(listener);
+  }
+
+  /// Removes a listener previously added with [addDetentListener].
+  void removeDetentListener(void Function(DNSheetDetent detent) listener) {
+    _detentListeners.remove(listener);
+  }
+
+  /// Adds a listener invoked whenever [push] is called on this sheet controller.
+  void addPushListener(void Function(Object page) listener) {
+    _pushListeners.add(listener);
+  }
+
+  /// Removes a listener previously added with [addPushListener].
+  void removePushListener(void Function(Object page) listener) {
+    _pushListeners.remove(listener);
+  }
+
+  /// Adds a listener invoked whenever [pop] is called on this sheet controller.
+  void addPopListener(void Function() listener) {
+    _popListeners.add(listener);
+  }
+
+  /// Removes a listener previously added with [addPopListener].
+  void removePopListener(void Function() listener) {
+    _popListeners.remove(listener);
   }
 
   // ── Programmatic control ──────────────────────────────────────────────────
@@ -114,6 +150,9 @@ class DNSheetController {
   /// Android: `fragmentManager.beginTransaction().replace().addToBackStack(null)`
   void push(Object page, {DNSheetDetent? expandsTo}) {
     if (!_isVisible) return;
+    for (final cb in List.of(_pushListeners)) {
+      cb(page);
+    }
     BottomSheetFFIBindings.instance.push(
       sheetId: _sheetId,
       expandsToDetentIndex: expandsTo != null
@@ -126,12 +165,21 @@ class DNSheetController {
   /// Restores the detent that was active before the last [push].
   void pop() {
     if (!_isVisible) return;
+    for (final cb in List.of(_popListeners)) {
+      cb();
+    }
     BottomSheetFFIBindings.instance.pop(sheetId: _sheetId);
   }
 
   // ── Internal (called from show_bottom_sheet.dart in same library) ───────────
 
-  void updateDetent(DNSheetDetent detent) => _currentDetent = detent;
+  void updateDetent(DNSheetDetent detent) {
+    _currentDetent = detent;
+    for (final cb in List.of(_detentListeners)) {
+      cb(detent);
+    }
+  }
+
   void markPresented() {
     if (_isPresented) return;
     _isPresented = true;
@@ -139,6 +187,7 @@ class DNSheetController {
       cb();
     }
   }
+
   void markDismissed() {
     _isVisible = false;
     _currentDetent = null;

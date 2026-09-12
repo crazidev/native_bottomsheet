@@ -16,12 +16,10 @@ class StackedSheet extends StatelessWidget {
     showBottomSheet(
       context,
       detents: const [DNSheetDetent.medium, DNSheetDetent.large],
-      initialDetent: DNSheetDetent.medium,
+      initialDetent: controller.currentDetent ?? DNSheetDetent.medium,
       showGrabber: true,
-      builder: (ctx, ctrl) => StackedSheet(
-        controller: ctrl,
-        level: level + 1,
-      ),
+      backgroundColor: const Color(0xFF141416),
+      builder: (ctx, ctrl) => StackedSheet(controller: ctrl, level: level + 1),
     );
   }
 
@@ -57,16 +55,20 @@ class StackedSheet extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             'This is sheet level $level. You can open another sheet on top of this one to test stacked bottom sheets.',
-            style: const TextStyle(
-              fontSize: 15,
-              color: Colors.white70,
-            ),
+            style: const TextStyle(fontSize: 15, color: Colors.white70),
           ),
           const SizedBox(height: 24),
-          SnapButton(
-            label: 'Open Sheet Level ${level + 1}',
-            isSelected: false,
-            onTap: () => _openNextSheet(context),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SnapButton(
+                  label: 'Open Sheet Level ${level + 1}',
+                  isSelected: false,
+                  onTap: () => _openNextSheet(context),
+                ),
+              ],
+            ),
           ),
         ],
       ),

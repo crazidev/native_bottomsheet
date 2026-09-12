@@ -8,11 +8,22 @@ import android.os.Looper
 import android.util.Log
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.AndroidUiDispatcher
@@ -54,13 +65,18 @@ private data class DetentSpec(val type: String, val value: Double = 0.0, val nam
 private class SheetEntry(
     val sheetId: Long,
     val detents: List<DetentSpec>,
-    val sheetState: SheetState,
-    var scope: CoroutineScope,
-    val composeView: ComposeView,
     val container: DNBottomSheetContainer,
     val rootViewId: Long,
-    var skipPartiallyExpanded: Boolean,
-)
+    val skipPartiallyExpanded: Boolean,
+) {
+    var composeView: ComposeView? = null
+    var sheetState: SheetState? = null
+    var scope: CoroutineScope? = null
+    var isDismissing: Boolean = false
+    var isPresented: Boolean = false
+    var onSnapToDetent: ((DetentSpec) -> Unit)? = null
+    var onLayoutRequested: (() -> Unit)? = null
+}
 
 private val activeSheets = mutableMapOf<Long, SheetEntry>()
 
@@ -110,7 +126,7 @@ object DNBottomSheetBridge {
 
     fun setDispatcher(ptr: Long) {
         dispatcherPtr = ptr
-        dispatcherGen = nativeIsolateGen()   // capture gen WITH the pointer
+        dispatcherGen = nativeIsolateGen()
     }
 
     fun fireToDart(token: Long, type: Int, payload: String) {
@@ -119,6 +135,29 @@ object DNBottomSheetBridge {
             val ptr = dispatcherPtr
             if (ptr == 0L) return@post
             nativeDeliver(ptr, token, type, payload)
+        }
+    }
+
+    private fun cleanupSheet(sheetId: Long, notify: Boolean) {
+        val entry = activeSheets.remove(sheetId) ?: return
+        entry.scope?.cancel()
+        if (entry.rootViewId > 0) {
+            try {
+                DNFlexLayout.release(entry.rootViewId)
+                DNViewRegistry.release(entry.rootViewId)
+            } catch (e: Exception) {
+                Log.w(TAG, "cleanupSheet release error: $e")
+            }
+        }
+        entry.composeView?.let { cv ->
+            try {
+                (cv.parent as? ViewGroup)?.removeView(cv)
+            } catch (e: Exception) {
+                Log.w(TAG, "cleanupSheet removeView error: $e")
+            }
+        }
+        if (notify) {
+            fireToDart(sheetId, EVENT_DISMISSED, "{}")
         }
     }
 
@@ -136,12 +175,16 @@ object DNBottomSheetBridge {
         val isDismissable  = cfg.optBoolean("isDismissable", true)
         val adaptBg        = cfg.optBoolean("adaptToContainerBackground", true)
         val routerEnabled  = cfg.optBoolean("routerEnabled", false)
+        val scrollExpandsSheet = cfg.optBoolean("scrollExpandsSheet", true)
 
         val androidCfg     = cfg.optJSONObject("android")
         val tonalElevation = androidCfg?.optDouble("tonalElevation", 0.0)?.toFloat() ?: 0f
+        val floatingGrabber = cfg.optBoolean(
+            "floatingGrabber",
+            androidCfg?.optBoolean("floatingGrabber", true) ?: true
+        )
 
         // Background precedence: top-level backgroundColor > deprecated android containerColor.
-        // -1 sentinel = no explicit color → adapt scan (if enabled) → platform default.
         val explicitBgInt: Int? = when {
             cfg.has("backgroundColor") -> cfg.getLong("backgroundColor").toInt()
             androidCfg != null && androidCfg.has("containerColor") &&
@@ -150,8 +193,7 @@ object DNBottomSheetBridge {
             else -> null
         }
 
-        // Scrim precedence: android scrimColor > android scrimOpacity >
-        // deprecated top-level scrimOpacity > M3 default.
+        // Scrim precedence: android scrimColor > android scrimOpacity > top-level scrimOpacity > M3 default.
         val scrimColorInt: Int? = if (androidCfg != null && androidCfg.has("scrimColor") &&
             androidCfg.optLong("scrimColor", -1L) != -1L) {
             androidCfg.optLong("scrimColor").toInt()
@@ -188,19 +230,16 @@ object DNBottomSheetBridge {
 
         val detents = (0 until detentArr.length()).map { parseDetent(detentArr.getJSONObject(it)) }
 
-        // SheetState anchors: PartiallyExpanded only when a medium detent exists.
-        // NOTE: rememberBottomSheetState (unified API) requires material3 1.5.0+
-        // which has no stable release yet (latest 1.5.0-alpha27); stable BOMs pin
-        // 1.4.0, so we stay on the deprecated rememberModalBottomSheetState until
-        // 1.5.0 goes stable. The legacy auto-anchor behavior is compatible here
-        // because anchors are derived from the same detent list.
         fun isMedium(d: DetentSpec) = d.type == "named" && d.name == "medium"
+        fun isContentFit(d: DetentSpec) = d.type == "named" && d.name == "contentFit"
+
         val hasMedium = detents.any { isMedium(it) }
-        val skipPartiallyExpanded = !hasMedium
+        val hasContentFit = detents.any { isContentFit(it) }
         val hasFractionOrPixels = detents.any { it.type == "fraction" || it.type == "pixels" }
-        // "Fullscreen" = only large-named detents → the sheet should fill the whole
-        // window (including behind the status bar).
-        val isFullscreen = skipPartiallyExpanded && !hasFractionOrPixels
+
+        // Fullscreen should only apply if explicitly large and no medium/fraction/contentFit exists
+        val isFullscreen = !hasContentFit && !hasMedium && !hasFractionOrPixels && detents.all { it.type == "named" && it.name == "large" }
+        val skipPartiallyExpanded = !hasMedium || hasContentFit || hasFractionOrPixels
 
         val activity = DNAppContext.activity()
         val ctx = activity ?: DNAppContext.get()
@@ -224,16 +263,24 @@ object DNBottomSheetBridge {
         container.yogaViewId = rootViewId
         DNFlexLayout.register(rootViewId, container)
 
+        // 4. Register SheetEntry IMMEDIATELY to prevent race conditions when Dart calls layoutContent/mountContent
+        val entry = SheetEntry(
+            sheetId = sheetId,
+            detents = detents,
+            container = container,
+            rootViewId = rootViewId,
+            skipPartiallyExpanded = skipPartiallyExpanded,
+        )
+        activeSheets[sheetId] = entry
+
         mainHandler.post {
             val currentActivity = DNAppContext.activity() ?: activity
             val decorView = currentActivity?.window?.decorView as? ViewGroup
             if (currentActivity == null || decorView == null) {
                 Log.e(TAG, "show: currentActivity or decorView is null")
+                cleanupSheet(sheetId, notify = false)
                 return@post
             }
-
-            val scope = CoroutineScope(AndroidUiDispatcher.Main + SupervisorJob())
-            var entryRef: SheetEntry? = null
 
             val composeView = ComposeView(currentActivity).apply {
                 setViewCompositionStrategy(
@@ -241,10 +288,9 @@ object DNBottomSheetBridge {
                 )
                 setContent {
                     val coroutineScope = rememberCoroutineScope()
-                    if (entryRef != null) {
-                        entryRef?.scope = coroutineScope
-                    }
+                    entry.scope = coroutineScope
 
+                    // SheetState for controlling the bottom sheet's state
                     val sheetState = rememberModalBottomSheetState(
                         skipPartiallyExpanded = skipPartiallyExpanded,
                         confirmValueChange = { newValue: SheetValue ->
@@ -254,33 +300,96 @@ object DNBottomSheetBridge {
                             } else true
                         }
                     )
+                    entry.sheetState = sheetState
 
-                    // Track detent changes
-                    val currentValue = sheetState.currentValue
-                    LaunchedEffect(currentValue) {
-                        val idx = when (currentValue) {
-                            SheetValue.PartiallyExpanded ->
-                                detents.indexOfFirst { it.type == "named" && it.name == "medium" }
-                            SheetValue.Expanded ->
-                                detents.indexOfFirst { it.type == "named" && it.name == "large" }
-                                    .takeIf { it >= 0 } ?: detents.lastIndex
-                            else -> -1
+                    val initialDetent = detents.getOrNull(initIdx.coerceIn(0, detents.lastIndex))
+                        ?: detents.firstOrNull()
+                        ?: DetentSpec("named", name = "large")
+
+                    var activeDetent by remember { mutableStateOf(initialDetent) }
+                    var dragHeightPx by remember { mutableStateOf<Float?>(null) }
+                    var layoutTrigger by remember { mutableStateOf(0L) }
+
+                    DisposableEffect(sheetId) {
+                        entry.onSnapToDetent = { targetDetent ->
+                            dragHeightPx = null
+                            activeDetent = targetDetent
+                            val idx = detents.indexOf(targetDetent)
+                            if (idx >= 0 && entry.isPresented) {
+                                fireToDart(sheetId, EVENT_DETENT_CHANGED, "{\"detentIndex\":$idx}")
+                            }
+                            coroutineScope.launch {
+                                try {
+                                    if (isMedium(targetDetent) && hasMedium && !skipPartiallyExpanded) {
+                                        if (sheetState.currentValue != SheetValue.PartiallyExpanded) {
+                                            sheetState.partialExpand()
+                                        }
+                                    } else {
+                                        if (sheetState.currentValue != SheetValue.Expanded) {
+                                            sheetState.expand()
+                                        }
+                                    }
+                                } catch (e: CancellationException) {
+                                    // Normal coroutine cancellation
+                                } catch (e: Throwable) {
+                                    Log.w(TAG, "snapTo expand error: $e")
+                                }
+                            }
                         }
-                        if (idx >= 0) {
-                            fireToDart(sheetId, EVENT_DETENT_CHANGED, "{\"detentIndex\":$idx}")
+                        entry.onLayoutRequested = {
+                            layoutTrigger++
+                        }
+                        onDispose {
+                            entry.onSnapToDetent = null
+                            entry.onLayoutRequested = null
                         }
                     }
 
-                    // Open on first composition — target the initial detent.
-                    LaunchedEffect(Unit) {
-                        val targetIdx = initIdx.coerceIn(0, detents.lastIndex)
-                        val targetDetent = detents[targetIdx]
-                        if (isMedium(targetDetent) && hasMedium) {
-                            sheetState.partialExpand()
-                        } else {
-                            sheetState.expand()
+                    val dragHelper = remember(sheetState) {
+                        SheetDraggableHelper(sheetState, coroutineScope)
+                    }
+
+                    // Observe detent changes via SheetState.currentValue only for standard medium/large gestures
+                    if (hasMedium && !skipPartiallyExpanded) {
+                        LaunchedEffect(sheetState) {
+                            snapshotFlow { sheetState.currentValue }
+                                .collect { value ->
+                                    if (!entry.isPresented) return@collect
+                                    when (value) {
+                                        SheetValue.PartiallyExpanded -> {
+                                            val mIdx = detents.indexOfFirst { isMedium(it) }
+                                            if (mIdx >= 0) {
+                                                activeDetent = detents[mIdx]
+                                                fireToDart(sheetId, EVENT_DETENT_CHANGED, "{\"detentIndex\":$mIdx}")
+                                            }
+                                        }
+                                        SheetValue.Expanded -> {
+                                            val lIdx = detents.indexOfFirst { it.type == "named" && it.name == "large" }
+                                                .takeIf { it >= 0 } ?: detents.lastIndex
+                                            if (lIdx >= 0) {
+                                                activeDetent = detents[lIdx]
+                                                fireToDart(sheetId, EVENT_DETENT_CHANGED, "{\"detentIndex\":$lIdx}")
+                                            }
+                                        }
+                                        else -> {}
+                                    }
+                                }
                         }
-                        fireToDart(sheetId, EVENT_PRESENTED, "{}")
+                    }
+
+                    // Open to initial detent using SheetState
+                    LaunchedEffect(sheetState) {
+                        try {
+                            if (isMedium(initialDetent) && hasMedium && !skipPartiallyExpanded) {
+                                sheetState.partialExpand()
+                            } else {
+                                sheetState.expand()
+                            }
+                            entry.isPresented = true
+                            fireToDart(sheetId, EVENT_PRESENTED, "{}")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Initial expand error: $e")
+                        }
                     }
 
                     val shape = RoundedCornerShape(
@@ -305,10 +414,9 @@ object DNBottomSheetBridge {
 
                     val dynamicBgColor = remember { mutableStateOf(defaultColor) }
 
-                    // Unconditional effect (rules-of-hooks safe): the gate lives
-                    // inside since all inputs are fixed for the sheet's lifetime.
-                    DisposableEffect(container, adaptEnabled) {
-                        if (adaptEnabled) {
+                    // Only scan first view if adapt is enabled and no explicit color
+                    if (adaptEnabled) {
+                        DisposableEffect(container) {
                             container.onChildBgDetected = { bgInt ->
                                 dynamicBgColor.value = Color(bgInt)
                             }
@@ -316,9 +424,9 @@ object DNBottomSheetBridge {
                             if (immediateBg != null && immediateBg != 0) {
                                 dynamicBgColor.value = Color(immediateBg)
                             }
-                        }
-                        onDispose {
-                            container.onChildBgDetected = null
+                            onDispose {
+                                container.onChildBgDetected = null
+                            }
                         }
                     }
 
@@ -347,18 +455,7 @@ object DNBottomSheetBridge {
 
                     ModalBottomSheet(
                         onDismissRequest = {
-                            activeSheets.remove(sheetId)
-                            if (rootViewId > 0) {
-                                try {
-                                    DNFlexLayout.release(rootViewId)
-                                    DNViewRegistry.release(rootViewId)
-                                } catch (e: Exception) {}
-                            }
-                            scope.cancel()
-                            try {
-                                (parent as? ViewGroup)?.removeView(this@apply)
-                            } catch (e: Exception) {}
-                            fireToDart(sheetId, EVENT_DISMISSED, "{}")
+                            cleanupSheet(sheetId, notify = true)
                         },
                         sheetState = sheetState,
                         sheetMaxWidth = maxWidthDp?.dp ?: BottomSheetDefaults.SheetMaxWidth,
@@ -368,7 +465,7 @@ object DNBottomSheetBridge {
                         contentColor = resolvedContentColor,
                         scrimColor = scrim,
                         tonalElevation = tonalElevation.dp,
-                        dragHandle = if (showGrabber) {
+                        dragHandle = if (showGrabber && !floatingGrabber) {
                             {
                                 val lum = 0.2126f * resolvedContainerColor.red +
                                           0.7152f * resolvedContainerColor.green +
@@ -379,13 +476,14 @@ object DNBottomSheetBridge {
                                             else Color.Black.copy(alpha = 0.35f)
                                 )
                             }
-                        } else null,
+                        } else {
+                            // Explicit empty composable lambda to prevent Compose compiler
+                            // from falling back to the default { BottomSheetDefaults.DragHandle() }
+                            // on initial composition/first frame.
+                            {}
+                        },
                         properties = sheetProperties,
                     ) {
-                        // When fullscreen, make the ModalBottomSheet dialog window
-                        // edge-to-edge so the sheet can extend behind the status bar.
-                        // Inside a ModalBottomSheet, LocalView.current.parent is the
-                        // Compose DialogWindowProvider which wraps the dialog Window.
                         val dialogRootView = LocalView.current
                         SideEffect {
                             if (isFullscreen) {
@@ -396,55 +494,235 @@ object DNBottomSheetBridge {
                             }
                         }
 
-                    val modContent = when {
-                            detents.any { it.type == "fraction" } ->
-                                Modifier.fillMaxHeight(detents.first { it.type == "fraction" }.value.toFloat())
-                            detents.any { it.type == "pixels" } ->
-                                Modifier.height(detents.first { it.type == "pixels" }.value.dp)
-                            isFullscreen -> Modifier.fillMaxSize()
-                            else -> Modifier.wrapContentHeight()
-                        }
-                        Box(
-                            modifier = modContent
-                                .fillMaxWidth()
-                                .then(
-                                    if (isFullscreen) Modifier.statusBarsPadding()
-                                    else Modifier
-                                )
-                        ) {
-                            AndroidView(
-                                factory = {
-                                    (container.parent as? ViewGroup)?.removeView(container)
-                                    container.apply {
-                                        layoutParams = ViewGroup.LayoutParams(
-                                            ViewGroup.LayoutParams.MATCH_PARENT,
-                                            ViewGroup.LayoutParams.WRAP_CONTENT,
-                                        )
-                                        tag = "dn_sheet_container_$sheetId"
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth().wrapContentHeight()
-                            )
-                        }
-                    }
+                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                            val sheetMaxH = maxHeight
+                            val density = LocalDensity.current
+                            val sheetMaxHPx = with(density) { sheetMaxH.toPx() }
 
-                    // Register entry once sheetState is available
-                    if (entryRef == null) {
-                        val entry = SheetEntry(
-                            sheetId = sheetId,
-                            detents = detents,
-                            sheetState = sheetState,
-                            scope = coroutineScope,
-                            composeView = this@apply,
-                            container = container,
-                            rootViewId = rootViewId,
-                            skipPartiallyExpanded = skipPartiallyExpanded,
-                        )
-                        entryRef = entry
-                        activeSheets[sheetId] = entry
+                            fun calcDetentHPx(d: DetentSpec): Float = when {
+                                d.type == "fraction" -> sheetMaxHPx * d.value.toFloat().coerceIn(0.05f, 1.0f)
+                                d.type == "pixels" -> with(density) { d.value.dp.toPx() }
+                                isMedium(d) -> sheetMaxHPx * 0.5f
+                                d.type == "named" && d.name == "large" -> sheetMaxHPx
+                                else -> sheetMaxHPx
+                            }
+
+                            val minDetentHPx = detents.map { calcDetentHPx(it) }.minOrNull() ?: sheetMaxHPx
+                            val maxDetentHPx = detents.map { calcDetentHPx(it) }.maxOrNull() ?: sheetMaxHPx
+
+                            val targetH: androidx.compose.ui.unit.Dp? = when {
+                                isContentFit(activeDetent) -> null
+                                hasFractionOrPixels -> with(density) { calcDetentHPx(activeDetent).toDp() }
+                                else -> null
+                            }
+
+                            val animatedTargetH by animateDpAsState(
+                                targetValue = targetH ?: 0.dp,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                ),
+                                label = "sheetHeightAnim"
+                            )
+
+                            val currentBoxH = if (dragHeightPx != null) {
+                                with(density) { dragHeightPx!!.toDp() }
+                            } else {
+                                animatedTargetH
+                            }
+
+                            DisposableEffect(container, sheetState, activeDetent, dragHeightPx, sheetMaxHPx) {
+                                container.scrollExpandsSheet = scrollExpandsSheet
+                                container.isSheetExpanded = {
+                                    if (hasFractionOrPixels) {
+                                        val curH = dragHeightPx ?: calcDetentHPx(activeDetent)
+                                        curH >= (maxDetentHPx - 2f)
+                                    } else {
+                                        dragHelper.isAtTop()
+                                    }
+                                }
+                                container.onDragDelta = { dy ->
+                                    if (hasFractionOrPixels) {
+                                        val curH = dragHeightPx ?: calcDetentHPx(activeDetent)
+                                        val newH = (curH + dy).coerceIn(minDetentHPx, maxDetentHPx)
+                                        val consumed = newH - curH
+                                        dragHeightPx = newH
+                                        consumed
+                                    } else {
+                                        dragHelper.dispatchDelta(dy)
+                                    }
+                                }
+                                container.onNestedScrollStopped = {
+                                    if (hasFractionOrPixels) {
+                                        val finalH = dragHeightPx
+                                        dragHeightPx = null
+                                        if (finalH != null) {
+                                            val bestDetent = detents.minByOrNull { d ->
+                                                kotlin.math.abs(calcDetentHPx(d) - finalH)
+                                            } ?: activeDetent
+                                            if (bestDetent != activeDetent) {
+                                                activeDetent = bestDetent
+                                                val idx = detents.indexOf(bestDetent)
+                                                if (idx >= 0 && entry.isPresented) {
+                                                    fireToDart(sheetId, EVENT_DETENT_CHANGED, "{\"detentIndex\":$idx}")
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        dragHelper.onStopped()
+                                    }
+                                }
+                                container.onFling = { vy ->
+                                    if (hasFractionOrPixels) {
+                                        val finalH = dragHeightPx
+                                        dragHeightPx = null
+                                        val targetDetent = if (vy > 300f) {
+                                            detents.last()
+                                        } else if (vy < -300f) {
+                                            detents.first()
+                                        } else {
+                                            finalH?.let { h ->
+                                                detents.minByOrNull { d -> kotlin.math.abs(calcDetentHPx(d) - h) }
+                                            } ?: activeDetent
+                                        }
+                                        if (targetDetent != activeDetent) {
+                                            activeDetent = targetDetent
+                                            val idx = detents.indexOf(targetDetent)
+                                            if (idx >= 0 && entry.isPresented) {
+                                                fireToDart(sheetId, EVENT_DETENT_CHANGED, "{\"detentIndex\":$idx}")
+                                            }
+                                        }
+                                    } else {
+                                        dragHelper.onFling(vy)
+                                    }
+                                }
+                                onDispose {
+                                    container.onDragDelta = null
+                                    container.onNestedScrollStopped = null
+                                    container.onFling = null
+                                }
+                            }
+
+                            val boxModifier = when {
+                                hasFractionOrPixels && targetH != null -> {
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .height(currentBoxH)
+                                }
+                                isContentFit(activeDetent) -> {
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .wrapContentHeight()
+                                        .animateContentSize(
+                                            animationSpec = spring(
+                                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                                stiffness = Spring.StiffnessMediumLow
+                                            )
+                                        )
+                                }
+                                isFullscreen -> {
+                                    Modifier
+                                        .fillMaxSize()
+                                        .statusBarsPadding()
+                                }
+                                else -> {
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .fillMaxHeight()
+                                }
+                            }
+
+                            val isFlexibleHeight = isContentFit(activeDetent)
+                            val innerMod = if (isFlexibleHeight) {
+                                Modifier.fillMaxWidth().wrapContentHeight()
+                            } else {
+                                Modifier.fillMaxSize()
+                            }
+
+                            Box(modifier = boxModifier) {
+                                AndroidView(
+                                    factory = {
+                                        (container.parent as? ViewGroup)?.removeView(container)
+                                        container.apply {
+                                            layoutParams = ViewGroup.LayoutParams(
+                                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                                if (isFlexibleHeight) ViewGroup.LayoutParams.WRAP_CONTENT
+                                                else ViewGroup.LayoutParams.MATCH_PARENT,
+                                            )
+                                            tag = "dn_sheet_container_$sheetId"
+                                        }
+                                    },
+                                    update = {
+                                        val desiredH = if (isFlexibleHeight) ViewGroup.LayoutParams.WRAP_CONTENT
+                                                       else ViewGroup.LayoutParams.MATCH_PARENT
+                                        val currentLp = it.layoutParams
+                                        if (currentLp != null && currentLp.height != desiredH) {
+                                            currentLp.height = desiredH
+                                            it.layoutParams = currentLp
+                                        }
+                                        if (layoutTrigger >= 0) {
+                                            it.requestLayout()
+                                            it.invalidate()
+                                        }
+                                    },
+                                    modifier = innerMod
+                                )
+
+                                if (showGrabber && floatingGrabber) {
+                                    val lum = 0.2126f * resolvedContainerColor.red +
+                                              0.7152f * resolvedContainerColor.green +
+                                              0.0722f * resolvedContainerColor.blue
+                                    val isDark = lum < 0.5f
+                                    val grabberColor = if (isDark) Color.White.copy(alpha = 0.4f)
+                                                       else Color.Black.copy(alpha = 0.25f)
+                                    val grabberDragModifier = if (hasFractionOrPixels) {
+                                        Modifier.pointerInput(sheetMaxHPx) {
+                                            detectVerticalDragGestures(
+                                                onVerticalDrag = { _, dragAmount ->
+                                                    val dy = -dragAmount
+                                                    val curH = dragHeightPx ?: calcDetentHPx(activeDetent)
+                                                    dragHeightPx = (curH + dy).coerceIn(minDetentHPx, maxDetentHPx)
+                                                },
+                                                onDragEnd = {
+                                                    val finalH = dragHeightPx
+                                                    dragHeightPx = null
+                                                    if (finalH != null) {
+                                                        val bestDetent = detents.minByOrNull { d ->
+                                                            kotlin.math.abs(calcDetentHPx(d) - finalH)
+                                                        } ?: activeDetent
+                                                        if (bestDetent != activeDetent) {
+                                                            activeDetent = bestDetent
+                                                            val idx = detents.indexOf(bestDetent)
+                                                            if (idx >= 0 && entry.isPresented) {
+                                                                fireToDart(sheetId, EVENT_DETENT_CHANGED, "{\"detentIndex\":$idx}")
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    } else {
+                                        Modifier
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopCenter)
+                                            .padding(top = 8.dp)
+                                            .size(width = 36.dp, height = 5.dp)
+                                            .background(
+                                                color = grabberColor,
+                                                shape = RoundedCornerShape(2.5.dp)
+                                            )
+                                            .then(grabberDragModifier)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
+
+            entry.composeView = composeView
 
             // Ensure ViewTree owners are present before adding to DecorView
             try {
@@ -469,6 +747,7 @@ object DNBottomSheetBridge {
                 decorView.addView(composeView, params)
             } catch (e: Exception) {
                 Log.e(TAG, "show: failed to attach ComposeView: $e")
+                cleanupSheet(sheetId, notify = false)
             }
         }
         return rootViewId
@@ -477,26 +756,23 @@ object DNBottomSheetBridge {
     fun dismiss(sheetId: Long, animated: Boolean) {
         mainHandler.post {
             val entry = activeSheets[sheetId] ?: return@post
-            entry.scope.launch {
-                try {
-                    if (animated) {
-                        entry.sheetState.hide()
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "dismiss: hide failed: $e")
-                } finally {
-                    activeSheets.remove(sheetId)
-                    if (entry.rootViewId > 0) {
-                        try {
-                            DNFlexLayout.release(entry.rootViewId)
-                            DNViewRegistry.release(entry.rootViewId)
-                        } catch (e: Exception) {}
-                    }
+            if (entry.isDismissing) return@post
+            entry.isDismissing = true
+
+            val sheetState = entry.sheetState
+            val scope = entry.scope
+            if (sheetState != null && scope != null && animated) {
+                scope.launch {
                     try {
-                        (entry.composeView.parent as? ViewGroup)?.removeView(entry.composeView)
-                    } catch (e: Exception) {}
-                    fireToDart(sheetId, EVENT_DISMISSED, "{}")
+                        sheetState.hide()
+                    } catch (e: Exception) {
+                        Log.w(TAG, "dismiss: hide failed: $e")
+                    } finally {
+                        cleanupSheet(sheetId, notify = true)
+                    }
                 }
+            } else {
+                cleanupSheet(sheetId, notify = true)
             }
         }
     }
@@ -505,12 +781,7 @@ object DNBottomSheetBridge {
         mainHandler.post {
             val entry = activeSheets[sheetId] ?: return@post
             val detent = entry.detents.getOrNull(detentIndex) ?: return@post
-            entry.scope.launch {
-                when {
-                    detent.type == "named" && detent.name == "medium" -> entry.sheetState.partialExpand()
-                    else                   -> entry.sheetState.expand()
-                }
-            }
+            entry.onSnapToDetent?.invoke(detent)
         }
     }
 
@@ -520,6 +791,7 @@ object DNBottomSheetBridge {
             DNFlexLayout.requestLayout()
             entry.container.requestLayout()
             entry.container.invalidate()
+            entry.onLayoutRequested?.invoke()
         }
     }
 
@@ -529,11 +801,12 @@ object DNBottomSheetBridge {
             DNFlexLayout.requestLayout()
             entry.container.requestLayout()
             entry.container.invalidate()
+            entry.onLayoutRequested?.invoke()
         }
     }
 
     fun beginAnimateChanges(sheetId: Long) {
-        // No-op — Compose state changes animate automatically.
+        // Compose animates state changes automatically.
     }
 
     fun endAnimateChanges(sheetId: Long) {
@@ -549,7 +822,6 @@ object DNBottomSheetBridge {
                 Log.e(TAG, "mountContent: viewId $viewId not found: $e"); return@post
             }
 
-            // Swap in the Dart view into the container
             entry.container.removeAllViews()
             entry.container.addView(
                 dartView,
@@ -558,42 +830,174 @@ object DNBottomSheetBridge {
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                 )
             )
+            entry.container.resetScrollViewCache()
+            entry.container.findFirstScrollView()
+            entry.container.detectChildBg()
             DNFlexLayout.requestLayout()
             entry.container.requestLayout()
+            entry.onLayoutRequested?.invoke()
         }
     }
 
     fun push(sheetId: Long, expandsToDetentIndex: Int) {
-        // Sheet routing (P3) — stub for now.
-        Log.w(TAG, "push: routerEnabled not yet implemented on Android (P3)")
+        Log.w(TAG, "push: routerEnabled not yet implemented on Android")
     }
 
     fun pop(sheetId: Long) {
-        // Sheet routing (P3) — stub for now.
-        Log.w(TAG, "pop: routerEnabled not yet implemented on Android (P3)")
+        Log.w(TAG, "pop: routerEnabled not yet implemented on Android")
     }
-
-    // ── Hot restart cleanup ────────────────────────────────────────────────
 
     fun dismissAllForReset() {
         mainHandler.post {
-            val entries = activeSheets.values.toList()
-            activeSheets.clear()
-            for (entry in entries) {
-                entry.scope.cancel()
-                try {
-                    if (entry.rootViewId > 0) {
-                        DNFlexLayout.release(entry.rootViewId)
-                        DNViewRegistry.release(entry.rootViewId)
-                    }
-                    (entry.composeView.parent as? ViewGroup)
-                        ?.removeView(entry.composeView)
-                } catch (e: Exception) {
-                    Log.w(TAG, "dismissAllForReset: remove failed: $e")
-                }
+            val sheetIds = activeSheets.keys.toList()
+            for (sheetId in sheetIds) {
+                cleanupSheet(sheetId, notify = false)
             }
         }
     }
 }
 
+/**
+ * Coordinates raw vertical scroll deltas and settling between child views (e.g. RecyclerView)
+ * and Compose's Material3 SheetState.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+private class SheetDraggableHelper(
+    val sheetState: SheetState,
+    val scope: CoroutineScope
+) {
+    private val getAnchoredDraggableMethod = try {
+        sheetState.javaClass.getMethod("getAnchoredDraggableState\$material3").apply {
+            isAccessible = true
+        }
+    } catch (e: Throwable) {
+        null
+    }
+
+    private val dispatchRawDeltaMethod = try {
+        val cls = Class.forName("androidx.compose.material3.internal.AnchoredDraggableState")
+        cls.getMethod("dispatchRawDelta", java.lang.Float.TYPE).apply {
+            isAccessible = true
+        }
+    } catch (e: Throwable) {
+        null
+    }
+
+    private val getClosestValueMethod = try {
+        val cls = Class.forName("androidx.compose.material3.internal.AnchoredDraggableState")
+        cls.getMethod("getClosestValue\$material3").apply {
+            isAccessible = true
+        }
+    } catch (e: Throwable) {
+        null
+    }
+
+    private val getOffsetMethod = try {
+        val cls = Class.forName("androidx.compose.material3.internal.AnchoredDraggableState")
+        cls.getMethod("getOffset").apply {
+            isAccessible = true
+        }
+    } catch (e: Throwable) {
+        null
+    }
+
+    private val getAnchorsMethod = try {
+        val cls = Class.forName("androidx.compose.material3.internal.AnchoredDraggableState")
+        cls.getMethod("getAnchors").apply {
+            isAccessible = true
+        }
+    } catch (e: Throwable) {
+        null
+    }
+
+    private val minAnchorMethod = try {
+        val cls = Class.forName("androidx.compose.material3.internal.DraggableAnchors")
+        cls.getMethod("minAnchor").apply {
+            isAccessible = true
+        }
+    } catch (e: Throwable) {
+        null
+    }
+
+    private var accumulatedDrag = 0f
+
+    fun isAtTop(): Boolean {
+        if (sheetState.currentValue == SheetValue.Expanded) return true
+        return try {
+            val draggable = getAnchoredDraggableMethod?.invoke(sheetState) ?: return false
+            val offset = (getOffsetMethod?.invoke(draggable) as? Float) ?: sheetState.requireOffset()
+            val anchors = getAnchorsMethod?.invoke(draggable) ?: return false
+            val minAnchor = (minAnchorMethod?.invoke(anchors) as? Float) ?: return false
+            offset <= (minAnchor + 1f)
+        } catch (e: Throwable) {
+            sheetState.currentValue == SheetValue.Expanded
+        }
+    }
+
+    fun dispatchDelta(deltaY: Float): Float {
+        accumulatedDrag += deltaY
+        val targetDelta = -deltaY
+        var consumedBySheet = 0f
+
+        try {
+            val draggable = getAnchoredDraggableMethod?.invoke(sheetState)
+            if (draggable != null && dispatchRawDeltaMethod != null) {
+                val consumedRaw = dispatchRawDeltaMethod.invoke(draggable, targetDelta) as? Float ?: 0f
+                // In Compose: targetDelta is -deltaY.
+                // Consumed delta in View coordinates is -consumedRaw.
+                consumedBySheet = -consumedRaw
+            }
+        } catch (e: Throwable) {
+            // Reflection error fallback
+        }
+
+        return consumedBySheet
+    }
+
+    fun onStopped() {
+        val totalDrag = accumulatedDrag
+        accumulatedDrag = 0f
+
+        try {
+            val draggable = getAnchoredDraggableMethod?.invoke(sheetState)
+            if (draggable != null && getClosestValueMethod != null) {
+                val closest = getClosestValueMethod.invoke(draggable)
+                scope.launch {
+                    try {
+                        if (closest == SheetValue.Expanded || isAtTop()) {
+                            sheetState.expand()
+                        } else {
+                            sheetState.partialExpand()
+                        }
+                    } catch (e: Throwable) {}
+                }
+                return
+            }
+        } catch (e: Throwable) {}
+
+        // Fallback settling based on drag direction and threshold
+        scope.launch {
+            try {
+                if (isAtTop() || totalDrag > 30f) {
+                    sheetState.expand()
+                } else if (totalDrag < -30f) {
+                    sheetState.partialExpand()
+                }
+            } catch (e: Throwable) {}
+        }
+    }
+
+    fun onFling(velocityY: Float) {
+        accumulatedDrag = 0f
+        scope.launch {
+            try {
+                if (velocityY > 200f) {
+                    sheetState.expand()
+                } else if (velocityY < -200f) {
+                    sheetState.partialExpand()
+                }
+            } catch (e: Throwable) {}
+        }
+    }
+}
 
