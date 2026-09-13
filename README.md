@@ -1,21 +1,21 @@
 Native bottom sheets for DartNative — `UISheetPresentationController` on iOS 15+, Material 3 `ModalBottomSheet` on Android.
 
-> Requires DartNative. Renders real native sheets (no WebViews, no Flutter platform channels) with Dart widget content hosted via `DartNativeReconciler`.
+> Requires [DartNative](https://dartnative.com/). Renders real native sheets.
 
-| Feature | iOS | Android |
-| --- | --- | --- |
-| Snap points (detents) | `UISheetPresentationController.detents` | `SheetState` + `fillMaxHeight` / fixed height |
-| Half / full sheet | ✅ `.medium()` / `.large()` | ✅ `PartiallyExpanded` / `Expanded` |
-| Content-fit auto sizing | ✅ iOS 16+ custom resolver (Yoga `adjustHeight`) | ✅ Compose `wrapContentHeight` |
-| Fractional / pixel detents | ✅ iOS 16+ custom, fallback on iOS 15 | ✅ `fillMaxHeight(f)` / `height(h.dp)` |
-| Drag handle (grabber) | ✅ `prefersGrabberVisible` | ✅ M3 `DragHandle` |
-| Non-dismissable + attempt callback | ✅ `isModalInPresentation` + `didAttemptToDismiss` | ✅ `confirmValueChange` veto |
-| Programmatic snap / dismiss | ✅ `animateChanges` | ✅ `partialExpand()` / `expand()` / `hide()` |
-| In-sheet navigation | ✅ `UINavigationController` (`routerEnabled`) | ⚠️ Stub — logs warning (planned) |
-| Custom scrim color / opacity | System dimming only (use `largestUndimmedDetent` to toggle dimming per detent) | ✅ `scrimColor` / `scrimOpacity` in `DNSheetAndroidConfig` |
-| Sheet background | ✅ `backgroundColor`, or auto-adopt child bg when `adaptToContainerBackground` (default true) | ✅ same (`containerColor`) |
-| Corner radius / elevation | Partial (corner radius yes) | ✅ `cornerRadius`, `tonalElevation`, `contentColor`, `sheetGesturesEnabled`, `sheetMaxWidthDp` |
-| Dismiss behavior | ✅ `isDismissable` | ✅ `isDismissable` + `shouldDismissOnBackPress` / `shouldDismissOnClickOutside`, `securePolicy`, light status/nav bars |
+| Feature                            | iOS                                                                                           | Android                                                                                                                |
+| ---------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Snap points (detents)              | `UISheetPresentationController.detents`                                                       | `SheetState` + `fillMaxHeight` / fixed height                                                                          |
+| Half / full sheet                  | ✅ `.medium()` / `.large()`                                                                   | ✅ `PartiallyExpanded` / `Expanded`                                                                                    |
+| Content-fit auto sizing            | ✅ iOS 16+ custom resolver (Yoga `adjustHeight`)                                              | ✅ Compose `wrapContentHeight`                                                                                         |
+| Fractional / pixel detents         | ✅ iOS 16+ custom, fallback on iOS 15                                                         | ✅ `fillMaxHeight(f)` / `height(h.dp)`                                                                                 |
+| Drag handle (grabber)              | ✅ `prefersGrabberVisible`                                                                    | ✅ M3 `DragHandle`                                                                                                     |
+| Non-dismissable + attempt callback | ✅ `isModalInPresentation` + `didAttemptToDismiss`                                            | ✅ `confirmValueChange` veto                                                                                           |
+| Programmatic snap / dismiss        | ✅ `animateChanges`                                                                           | ✅ `partialExpand()` / `expand()` / `hide()`                                                                           |
+| In-sheet navigation                | ✅ `UINavigationController` (`routerEnabled`)                                                 | ⚠️ Stub — logs warning (planned)                                                                                       |
+| Custom scrim color / opacity       | System dimming only (use `largestUndimmedDetent` to toggle dimming per detent)                | ✅ `scrimColor` / `scrimOpacity` in `DNSheetAndroidConfig`                                                             |
+| Sheet background                   | ✅ `backgroundColor`, or auto-adopt child bg when `adaptToContainerBackground` (default true) | ✅ same (`containerColor`)                                                                                             |
+| Corner radius / elevation          | Partial (corner radius yes)                                                                   | ✅ `cornerRadius`, `tonalElevation`, `contentColor`, `sheetGesturesEnabled`, `sheetMaxWidthDp`                         |
+| Dismiss behavior                   | ✅ `isDismissable`                                                                            | ✅ `isDismissable` + `shouldDismissOnBackPress` / `shouldDismissOnClickOutside`, `securePolicy`, light status/nav bars |
 
 See [iOS fallback behavior](#ios-15-fallbacks) and [out of scope](#out-of-scope) below.
 
@@ -39,8 +39,6 @@ void main() {
 }
 ```
 
-> Do not use Flutter's `showModalBottomSheet` — content must be hosted in the native sheet via this package's `showBottomSheet`.
-
 ## Usage
 
 ### Basic sheet
@@ -50,7 +48,7 @@ import 'package:dartnative/dartnative.dart';
 import 'package:dartnative_bottom_sheet/dartnative_bottom_sheet.dart';
 
 final sheet = showBottomSheet(
-  context, // DartNative context (dynamic), not a Navigator context
+  context,
   detents: const [DNSheetDetent.medium, DNSheetDetent.large],
   initialDetent: DNSheetDetent.medium,
   showGrabber: true,
@@ -144,14 +142,8 @@ showBottomSheet(
   backgroundColor: const Color(0xFF1C1C1E),
   platformConfig: DNSheetPlatformConfig(
     ios: DNSheetIOSConfig(
-      largestUndimmedDetent: DNSheetDetent.medium, // content behind sheet not dimmed up to medium
-      edgeAttachedInCompactHeight: true,           // landscape bottom-edge attach
-      prefersPageSizing: false,
     ),
     android: DNSheetAndroidConfig(
-      tonalElevation: 2.0,
-      scrimColor: 0x99000000, // 0xAARRGGBB (Android-only; iOS uses system dimming)
-      shouldDismissOnClickOutside: false,
     ),
   ),
 );
@@ -175,29 +167,11 @@ controller.pop();
 
 iOS embeds a `UINavigationController`. Android routing is not yet implemented (calls log a warning).
 
-## Example
-
-The [`example/`](example/) app demonstrates four patterns: fit-to-content, text input with keyboard, programmatic detent switching, and prevent-close. Run with the DartNative CLI:
-
-```sh
-dn pub get
-dn run -d <device-id>
-```
-
-DartNative apps require a license (`dn config --license-key dnk_...`). See `example/README.md`.
-
 ## Requirements
 
 - DartNative (`dartnative`, `dartnative_ios`, `dartnative_android`) + `ffi`
 - iOS 15+ (custom `fraction` / `pixels` / `contentFit` resolvers need iOS 16+)
 - Android with Material 3 Compose `ModalBottomSheet` support
-
-## Out of scope
-
-- Flutter `showModalBottomSheet` compatibility — this package replaces it for DartNative apps.
-- Custom iOS scrim opacity via `UIPresentationController` subclass (acknowledged in native code, tracked for a later release).
-- Android in-sheet `push` / `pop` routing (stubbed; iOS only for now).
-- Web / desktop targets — iOS + Android only.
 
 ## Terminology
 
