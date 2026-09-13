@@ -1,5 +1,5 @@
 import 'package:dartnative/flutter_compat.dart';
-import 'package:dartnative_bottom_sheet/dartnative_bottom_sheet.dart';
+import 'package:native_bottomsheet/native_bottomsheet.dart';
 
 /// A Dart framework or package definition for the search list.
 class DartFrameworkItem {

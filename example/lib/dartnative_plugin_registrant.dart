@@ -13,14 +13,14 @@
 // overwriting it.
 //
 // Plugins loaded:
-//   • dartnative_bottom_sheet
+//   • native_bottomsheet
 
 import 'dart:io' show Platform;
 
 import 'package:dartnative/dartnative.dart';
 import 'package:dartnative_ios/dartnative_ios.dart';
 import 'package:dartnative_android/dartnative_android.dart';
-import 'package:dartnative_bottom_sheet/dartnative_bottom_sheet.dart';
+import 'package:native_bottomsheet/native_bottomsheet.dart';
 
 abstract final class DartNativePluginRegistrant {
   /// Registers the platform bindings and loads every DartNative plugin's
@@ -39,14 +39,14 @@ abstract final class DartNativePluginRegistrant {
       DartNativeLicense.instance.noteTrialEnded();
     }
     DartNativeLicense.instance.reportPluginUsage(const <String>[
-      'dartnative_bottom_sheet',
+      'native_bottomsheet',
     ]);
     registerNativeBindings(
       Platform.isAndroid
           ? AndroidNativeBindings.instance
           : IOSNativeBindings.instance,
     );
-    _load('dartnative_bottom_sheet', () {
+    _load('native_bottomsheet', () {
       BottomSheetFFIBindings.loadSymbols();
     });
   }

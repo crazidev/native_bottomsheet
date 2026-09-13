@@ -1,5 +1,5 @@
 ---
-name: dartnative_bottom_sheet-basics
+name: native_bottomsheet-basics
 description: >-
   Use when showing a DartNative native bottom sheet, controlling it with
   DNSheetController, or handling sheet lifecycle (dismiss, detent change).
@@ -11,7 +11,7 @@ description: >-
 ## Guidelines
 
 - Always call `BottomSheetFFIBindings.loadSymbols()` in `main()` before `runApp()`, or call `DartNativePluginRegistrant.registerAll()` which covers all DartNative plugins.
-- Always use `showBottomSheet` from `package:dartnative_bottom_sheet/dartnative_bottom_sheet.dart`. Never use Flutter's `showModalBottomSheet` — Dart content must be hosted in the native sheet via `DartNativeReconciler`.
+- Always use `showBottomSheet` from `package:native_bottomsheet/native_bottomsheet.dart`. Never use Flutter's `showModalBottomSheet` — Dart content must be hosted in the native sheet via `DartNativeReconciler`.
 - The first `context` argument is the DartNative context (`dynamic`). Pass the ambient DartNative context through; do not substitute a Flutter `Navigator` context.
 - `detents` must contain at least one entry. The first entry is the initial detent unless `initialDetent` overrides it.
 - `initialDetent` must be an element of `detents`. Anything else falls back to `detents.first` with a console warning.
@@ -25,7 +25,7 @@ description: >-
 ### Minimal setup
 
 ```dart
-import 'package:dartnative_bottom_sheet/dartnative_bottom_sheet.dart';
+import 'package:native_bottomsheet/native_bottomsheet.dart';
 
 void main() {
   BottomSheetFFIBindings.loadSymbols();
@@ -37,7 +37,7 @@ void main() {
 
 ```dart
 import 'package:dartnative/dartnative.dart';
-import 'package:dartnative_bottom_sheet/dartnative_bottom_sheet.dart';
+import 'package:native_bottomsheet/native_bottomsheet.dart';
 
 final sheet = showBottomSheet(
   context,

@@ -1,6 +1,6 @@
 import 'package:dartnative/dartnative.dart';
 import 'package:dartnative/flutter_compat.dart';
-import 'package:dartnative_bottom_sheet/dartnative_bottom_sheet.dart';
+import 'package:native_bottomsheet/native_bottomsheet.dart';
 import 'package:example/component/adjust_detent_sheet.dart';
 import 'package:example/component/fit_content_sheet.dart';
 import 'package:example/component/input_sheet.dart';

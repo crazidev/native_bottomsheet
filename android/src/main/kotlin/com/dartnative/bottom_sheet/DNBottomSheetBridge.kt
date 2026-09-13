@@ -108,7 +108,7 @@ object DNBottomSheetBridge {
 
     init {
         try {
-            System.loadLibrary("dartnative_bottom_sheet")
+            System.loadLibrary("native_bottomsheet")
             nativeInit(this)
         } catch (e: Throwable) {
             Log.w(TAG, "DNBottomSheetBridge: nativeInit failed in static init: $e")

@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.18.1)
-project(dartnative_bottom_sheet)
+project(native_bottomsheet)
 
 add_library(
-  dartnative_bottom_sheet
+  native_bottomsheet
   SHARED
-  dartnative_bottom_sheet.cpp
+  native_bottomsheet.cpp
 )
 
 target_link_libraries(
-  dartnative_bottom_sheet
+  native_bottomsheet
   android
   log
 )

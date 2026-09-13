@@ -1,5 +1,5 @@
 ---
-name: dartnative_bottom_sheet-platform
+name: native_bottomsheet-platform
 description: >-
   Use when configuring dismissal behavior, scroll expansion, sheet styling,
   iOS/Android platform overrides, or in-sheet push/pop routing.

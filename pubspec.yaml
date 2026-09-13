@@ -1,4 +1,4 @@
-name: dartnative_bottom_sheet
+name: native_bottomsheet
 description: "Native bottom sheets for DartNative — UISheetPresentationController on iOS, Compose ModalBottomSheet on Android."
 version: 0.1.0
 publish_to: none # Remove to publish. Add homepage/repository/issue_tracker first.
@@ -31,6 +31,6 @@ dartnative:
         pluginClass: DartNativeBottomSheetPlugin
   registrant:
     imports:
-      - package:dartnative_bottom_sheet/dartnative_bottom_sheet.dart
+      - package:native_bottomsheet/native_bottomsheet.dart
     calls:
       - BottomSheetFFIBindings.loadSymbols();

@@ -1,4 +1,4 @@
-# dartnative_bottom_sheet
+# native_bottomsheet
 
 Native bottom sheets for [DartNative](https://dartnative.com/) — powered by `UISheetPresentationController` on iOS 15+ and Material 3 `ModalBottomSheet` on Android.
 
@@ -31,7 +31,7 @@ Native bottom sheets for [DartNative](https://dartnative.com/) — powered by `U
 
 ```yaml
 dependencies:
-  dartnative_bottom_sheet: ^0.1.0
+  native_bottomsheet: ^0.1.0
 ```
 
 ### 2. Register FFI bindings
@@ -39,7 +39,7 @@ dependencies:
 Call this once before `runApp()`, or use `DartNativePluginRegistrant.registerAll()` to register all DartNative plugins at once:
 
 ```dart
-import 'package:dartnative_bottom_sheet/dartnative_bottom_sheet.dart';
+import 'package:native_bottomsheet/native_bottomsheet.dart';
 
 void main() {
   DartNativePluginRegistrant.registerAll();
@@ -55,7 +55,7 @@ void main() {
 
 ```dart
 import 'package:dartnative/dartnative.dart';
-import 'package:dartnative_bottom_sheet/dartnative_bottom_sheet.dart';
+import 'package:native_bottomsheet/native_bottomsheet.dart';
 
 final sheet = showBottomSheet(
   context,

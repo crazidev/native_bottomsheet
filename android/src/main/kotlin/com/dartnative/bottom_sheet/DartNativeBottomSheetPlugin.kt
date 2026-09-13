@@ -18,7 +18,7 @@ class DartNativeBottomSheetPlugin : FlutterPlugin {
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         try {
-            System.loadLibrary("dartnative_bottom_sheet")
+            System.loadLibrary("native_bottomsheet")
             DNBottomSheetBridge.init()
         } catch (e: UnsatisfiedLinkError) {
             Log.w(TAG, "Native library not found — FFI callbacks unavailable: $e")

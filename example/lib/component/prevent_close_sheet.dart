@@ -1,5 +1,5 @@
 import 'package:dartnative/dartnative.dart';
-import 'package:dartnative_bottom_sheet/dartnative_bottom_sheet.dart';
+import 'package:native_bottomsheet/native_bottomsheet.dart';
 
 class PreventCloseSheet extends StatelessWidget {
   const PreventCloseSheet({

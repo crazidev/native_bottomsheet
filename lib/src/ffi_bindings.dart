@@ -12,10 +12,10 @@ typedef _DispatchC = Void Function(Int64, Int32, Pointer<Utf8>);
 // ─── Event type constants ───────────────────────────────────────────────────
 
 abstract final class _SheetEvent {
-  static const int detentChanged    = 1;
-  static const int dismissed        = 2;
+  static const int detentChanged = 1;
+  static const int dismissed = 2;
   static const int dismissAttempted = 3;
-  static const int presented        = 4;
+  static const int presented = 4;
 }
 
 // ─── Handler map ───────────────────────────────────────────────────────────
@@ -35,17 +35,17 @@ final Pointer<NativeFunction<_DispatchC>> _dispatchPtr =
 
 // ─── FFI function typedefs ─────────────────────────────────────────────────
 
-typedef _SetDispatcherC   = Void Function(Int64);
-typedef _ShowC            = Int64 Function(Pointer<Utf8>);
-typedef _DismissC         = Void Function(Int64, Bool);
-typedef _SnapToC          = Void Function(Int64, Int32, Bool);
-typedef _InvalidateC      = Void Function(Int64);
+typedef _SetDispatcherC = Void Function(Int64);
+typedef _ShowC = Int64 Function(Pointer<Utf8>);
+typedef _DismissC = Void Function(Int64, Bool);
+typedef _SnapToC = Void Function(Int64, Int32, Bool);
+typedef _InvalidateC = Void Function(Int64);
 typedef _AnimChangesBeginC = Void Function(Int64);
-typedef _AnimChangesEndC  = Void Function(Int64);
-typedef _MountContentC    = Void Function(Int64, Int64);
-typedef _LayoutContentC   = Void Function(Int64);
-typedef _PushC            = Void Function(Int64, Int32);
-typedef _PopC             = Void Function(Int64);
+typedef _AnimChangesEndC = Void Function(Int64);
+typedef _MountContentC = Void Function(Int64, Int64);
+typedef _LayoutContentC = Void Function(Int64);
+typedef _PushC = Void Function(Int64, Int32);
+typedef _PopC = Void Function(Int64);
 
 // ─── Bindings singleton ────────────────────────────────────────────────────
 
@@ -55,17 +55,17 @@ class BottomSheetFFIBindings {
 
   bool _loaded = false;
 
-  late final void Function(int)   _setDispatcher;
+  late final void Function(int) _setDispatcher;
   late final int Function(Pointer<Utf8>) _show;
-  late final void Function(int, bool)     _dismiss;
+  late final void Function(int, bool) _dismiss;
   late final void Function(int, int, bool) _snapTo;
-  late final void Function(int)           _invalidateDetents;
-  late final void Function(int)           _beginAnimateChanges;
-  late final void Function(int)           _endAnimateChanges;
-  late final void Function(int, int)      _mountContent;
-  late final void Function(int)           _layoutContent;
-  late final void Function(int, int)      _push;
-  late final void Function(int)           _pop;
+  late final void Function(int) _invalidateDetents;
+  late final void Function(int) _beginAnimateChanges;
+  late final void Function(int) _endAnimateChanges;
+  late final void Function(int, int) _mountContent;
+  late final void Function(int) _layoutContent;
+  late final void Function(int, int) _push;
+  late final void Function(int) _pop;
 
   /// Called once from [DartNativeBottomSheetRegistrant.register].
   static void loadSymbols() {
@@ -75,35 +75,43 @@ class BottomSheetFFIBindings {
     b._loaded = true;
 
     final lib = Platform.isAndroid
-        ? DynamicLibrary.open('libdartnative_bottom_sheet.so')
+        ? DynamicLibrary.open('libnative_bottomsheet.so')
         : DynamicLibrary.process();
 
     b._setDispatcher = lib.lookupFunction<_SetDispatcherC, void Function(int)>(
-        'DNBottomSheetSetDispatcher');
+      'DNBottomSheetSetDispatcher',
+    );
     b._show = lib.lookupFunction<_ShowC, int Function(Pointer<Utf8>)>(
-        'DNBottomSheetShow');
+      'DNBottomSheetShow',
+    );
     b._dismiss = lib.lookupFunction<_DismissC, void Function(int, bool)>(
-        'DNBottomSheetDismiss');
+      'DNBottomSheetDismiss',
+    );
     b._snapTo = lib.lookupFunction<_SnapToC, void Function(int, int, bool)>(
-        'DNBottomSheetSnapTo');
+      'DNBottomSheetSnapTo',
+    );
     b._invalidateDetents = lib.lookupFunction<_InvalidateC, void Function(int)>(
-        'DNBottomSheetInvalidateDetents');
-    b._beginAnimateChanges =
-        lib.lookupFunction<_AnimChangesBeginC, void Function(int)>(
-            'DNBottomSheetAnimateChangesBegin');
-    b._endAnimateChanges =
-        lib.lookupFunction<_AnimChangesEndC, void Function(int)>(
-            'DNBottomSheetAnimateChangesEnd');
-    b._mountContent =
-        lib.lookupFunction<_MountContentC, void Function(int, int)>(
-            'DNBottomSheetMountContent');
-    b._layoutContent =
-        lib.lookupFunction<_LayoutContentC, void Function(int)>(
-            'DNBottomSheetLayoutContent');
+      'DNBottomSheetInvalidateDetents',
+    );
+    b._beginAnimateChanges = lib
+        .lookupFunction<_AnimChangesBeginC, void Function(int)>(
+          'DNBottomSheetAnimateChangesBegin',
+        );
+    b._endAnimateChanges = lib
+        .lookupFunction<_AnimChangesEndC, void Function(int)>(
+          'DNBottomSheetAnimateChangesEnd',
+        );
+    b._mountContent = lib
+        .lookupFunction<_MountContentC, void Function(int, int)>(
+          'DNBottomSheetMountContent',
+        );
+    b._layoutContent = lib.lookupFunction<_LayoutContentC, void Function(int)>(
+      'DNBottomSheetLayoutContent',
+    );
     b._push = lib.lookupFunction<_PushC, void Function(int, int)>(
-        'DNBottomSheetPush');
-    b._pop = lib.lookupFunction<_PopC, void Function(int)>(
-        'DNBottomSheetPop');
+      'DNBottomSheetPush',
+    );
+    b._pop = lib.lookupFunction<_PopC, void Function(int)>('DNBottomSheetPop');
 
     // Register the single dispatcher pointer with native once.
     b._setDispatcher(_dispatchPtr.address);
@@ -173,8 +181,8 @@ class BottomSheetFFIBindings {
 
   // ── Event parsing helpers ─────────────────────────────────────────────────
 
-  static const int eventDetentChanged    = _SheetEvent.detentChanged;
-  static const int eventDismissed        = _SheetEvent.dismissed;
+  static const int eventDetentChanged = _SheetEvent.detentChanged;
+  static const int eventDismissed = _SheetEvent.dismissed;
   static const int eventDismissAttempted = _SheetEvent.dismissAttempted;
-  static const int eventPresented        = _SheetEvent.presented;
+  static const int eventPresented = _SheetEvent.presented;
 }

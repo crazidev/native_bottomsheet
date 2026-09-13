@@ -6,7 +6,7 @@
 ///
 /// ## Usage
 /// ```dart
-/// import 'package:dartnative_bottom_sheet/dartnative_bottom_sheet.dart';
+/// import 'package:native_bottomsheet/native_bottomsheet.dart';
 ///
 /// // In main() before runApp():
 /// BottomSheetFFIBindings.loadSymbols();

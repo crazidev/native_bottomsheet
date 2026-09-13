@@ -1,5 +1,5 @@
 ---
-name: dartnative_bottom_sheet-detents
+name: native_bottomsheet-detents
 description: >-
   Use when choosing DNSheetDetent snap points, implementing contentFit sheets,
   snapping programmatically, or invalidating detents after content resizes.
