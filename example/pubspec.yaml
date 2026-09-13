@@ -14,6 +14,8 @@ dependencies:
   dartnative_android: ^1.0.0
   dartnative_bottom_sheet:
     path: ../
+  # dartnative_analyzer_plugin:
+  #   path: ../dartnative_analyzer_plugin/
 
 dev_dependencies:
   lints: ^6.0.0

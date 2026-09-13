@@ -9,47 +9,10 @@
       "request": "launch",
       "type": "dart"
     },
-    {
-      "name": "dartnative_bottomsheet (profile mode)",
-      "request": "launch",
-      "type": "dart",
-      "flutterMode": "profile"
-    },
-    {
-      "name": "dartnative_bottomsheet (release mode)",
-      "request": "launch",
-      "type": "dart",
-      "flutterMode": "release"
-    },
-    {
-      "name": "dartnative_analyzer_plugin",
-      "cwd": "dartnative_analyzer_plugin",
-      "request": "launch",
-      "type": "dart"
-    },
+
     {
       "name": "example",
       "cwd": "example",
-      "request": "launch",
-      "type": "dart"
-    },
-    {
-      "name": "example (profile mode)",
-      "cwd": "example",
-      "request": "launch",
-      "type": "dart",
-      "flutterMode": "profile"
-    },
-    {
-      "name": "example (release mode)",
-      "cwd": "example",
-      "request": "launch",
-      "type": "dart",
-      "flutterMode": "release"
-    },
-    {
-      "name": "analyzer_plugin",
-      "cwd": "dartnative_analyzer_plugin/tools/analyzer_plugin",
       "request": "launch",
       "type": "dart"
     }
