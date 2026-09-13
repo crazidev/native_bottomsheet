@@ -58,3 +58,4 @@ example/flutter_*.png
 
 # Submodules / separate repositories
 dartnative_analyzer_plugin/
+dist
