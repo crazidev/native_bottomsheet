@@ -27,6 +27,7 @@ linter:
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
 
-analyzer:
-  # plugins:
-  # - dartnative_analyzer_plugin
+plugins:
+  assists_kit:
+    hosted: https://dartpub.dev
+    version: ^0.1.4
