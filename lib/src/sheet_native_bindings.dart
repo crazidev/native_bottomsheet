@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dartnative/dartnative.dart';
 import 'package:dartnative/plugin.dart';
 
@@ -159,6 +161,22 @@ class SheetNativeBindings implements NativeBindings {
   bool getIsIOS26() => _inner.getIsIOS26();
 
   @override
+  int getLayoutDirection() => _inner.getLayoutDirection();
+
+  @override
+  void setLayoutDirection(int direction) =>
+      _inner.setLayoutDirection(direction);
+
+  @override
+  ({int composingEnd, int composingStart, int end, int start})
+      textFieldGetSelection(int viewId) =>
+          _inner.textFieldGetSelection(viewId);
+
+  @override
+  void textFieldSetSelection(int viewId, int start, int end) =>
+      _inner.textFieldSetSelection(viewId, start, end);
+
+  @override
   double getTextScaleFactor() => _inner.getTextScaleFactor();
 
   @override
@@ -197,6 +215,14 @@ class SheetNativeBindings implements NativeBindings {
       _inner.registerKeyboardCallback(callback);
 
   @override
+  void registerBrightnessCallback(void Function(bool isDark) callback) =>
+      _inner.registerBrightnessCallback(callback);
+
+  @override
+  void registerSystemPopCallback(void Function(int poppedRootId) callback) =>
+      _inner.registerSystemPopCallback(callback);
+
+  @override
   void registerInsetsChangedCallback(void Function() callback) =>
       _inner.registerInsetsChangedCallback(callback);
 
@@ -211,6 +237,81 @@ class SheetNativeBindings implements NativeBindings {
     void Function(double width, double height) callback,
   ) =>
       _inner.registerOrientationCallback(callback);
+
+  @override
+  void registerDeviceOrientationCallback(
+    void Function(int orientationIndex)? callback,
+  ) =>
+      _inner.registerDeviceOrientationCallback(callback);
+
+  @override
+  Float32List? measureParagraph(
+    Uint8List paragraphBytes,
+    double constraintWidth,
+  ) =>
+      _inner.measureParagraph(paragraphBytes, constraintWidth);
+
+  @override
+  Uint8List? loadAssetBytes(String assetKey) =>
+      _inner.loadAssetBytes(assetKey);
+
+  @override
+  Float32List? getParagraphLineMetrics(
+    Uint8List paragraphBytes,
+    double constraintWidth,
+  ) =>
+      _inner.getParagraphLineMetrics(paragraphBytes, constraintWidth);
+
+  @override
+  Float32List? getParagraphBoxesForRange(
+    Uint8List paragraphBytes,
+    double constraintWidth,
+    int start,
+    int end,
+  ) =>
+      _inner.getParagraphBoxesForRange(
+        paragraphBytes,
+        constraintWidth,
+        start,
+        end,
+      );
+
+  @override
+  Int32List? getParagraphPositionForOffset(
+    Uint8List paragraphBytes,
+    double constraintWidth,
+    double x,
+    double y,
+  ) =>
+      _inner.getParagraphPositionForOffset(
+        paragraphBytes,
+        constraintWidth,
+        x,
+        y,
+      );
+
+  @override
+  void registerAppLifecycleCallback(void Function(int stateIndex) callback) =>
+      _inner.registerAppLifecycleCallback(callback);
+
+  @override
+  void registerSystemBackCallback(void Function() callback) =>
+      _inner.registerSystemBackCallback(callback);
+
+  @override
+  void registerRootRecreatedCallback(void Function() callback) =>
+      _inner.registerRootRecreatedCallback(callback);
+
+  @override
+  void setSystemBackIntercept(bool intercept) =>
+      _inner.setSystemBackIntercept(intercept);
+
+  @override
+  void systemNavigatorPop() => _inner.systemNavigatorPop();
+
+  @override
+  void registerMemoryPressureCallback(void Function() callback) =>
+      _inner.registerMemoryPressureCallback(callback);
 
   @override
   void registerKeyboardView(ViewId viewId) =>
@@ -249,5 +350,72 @@ class SheetNativeBindings implements NativeBindings {
   void resetViews() => _inner.resetViews();
 
   @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  void dismissSplash() => _inner.dismissSplash();
+
+  @override
+  void navigatorStoreRouteName(String name) =>
+      _inner.navigatorStoreRouteName(name);
+
+  @override
+  void navigatorPopRouteName() => _inner.navigatorPopRouteName();
+
+  @override
+  int navigatorGetRouteCount() => _inner.navigatorGetRouteCount();
+
+  @override
+  String navigatorGetRouteName(int index) =>
+      _inner.navigatorGetRouteName(index);
+
+  @override
+  void navigatorClearRouteNames() => _inner.navigatorClearRouteNames();
+
+  @override
+  void setOrientationLock(int mask) => _inner.setOrientationLock(mask);
+
+  @override
+  void setStatusBarStyle(int style) => _inner.setStatusBarStyle(style);
+
+  @override
+  void setStatusBarHidden(int mode) => _inner.setStatusBarHidden(mode);
+
+  @override
+  void setStatusBarColor(int argb) => _inner.setStatusBarColor(argb);
+
+  @override
+  void setNavigationBarColor(int argb) =>
+      _inner.setNavigationBarColor(argb);
+
+  @override
+  void setNavigationBarDividerColor(int argb) =>
+      _inner.setNavigationBarDividerColor(argb);
+
+  @override
+  List<int>? getSystemTonalPalettes() => _inner.getSystemTonalPalettes();
+
+  @override
+  void setStatusBarIconBrightness(int isLight) =>
+      _inner.setStatusBarIconBrightness(isLight);
+
+  @override
+  void setSystemNavigationBarIconBrightness(int isLight) =>
+      _inner.setSystemNavigationBarIconBrightness(isLight);
+
+  @override
+  bool systemIsDark() => _inner.systemIsDark();
+
+  @override
+  void clipboardSetString(String text) =>
+      _inner.clipboardSetString(text);
+
+  @override
+  String? clipboardGetString() => _inner.clipboardGetString();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    try {
+      return (_inner as dynamic).noSuchMethod(invocation);
+    } catch (_) {
+      return super.noSuchMethod(invocation);
+    }
+  }
 }
