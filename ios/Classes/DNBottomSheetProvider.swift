@@ -359,7 +359,7 @@ private final class _SheetEntry {
         }
 
         presentingVC.present(pVC, animated: true) { [weak self] in
-            guard let self = self else { return }
+            guard let self = self, !self.isDismissing else { return }
             self.containerVC.layoutRootFlex()
             fireToDart(token: self.sheetId, type: kEventPresented, payload: "{}")
         }
@@ -396,6 +396,14 @@ private final class _DNBottomSheetManager {
     func cleanupSheet(_ sheetId: Int64, notify: Bool) {
         assert(Thread.isMainThread, "cleanupSheet must run on the main thread")
         guard let entry = sheets.removeValue(forKey: sheetId) else { return }
+        entry.isDismissing = true
+        entry.delegate = nil
+        entry.presentedVC.sheetPresentationController?.delegate = nil
+        entry.presentedVC.presentationController?.delegate = nil
+        entry.containerVC.sheetPresentationController?.delegate = nil
+        entry.containerVC.presentationController?.delegate = nil
+        entry.containerVC.rootView?.removeFromSuperview()
+        entry.containerVC.rootView = nil
         _dnDisposeView?(entry.rootViewId)
         if notify {
             fireToDart(token: sheetId, type: kEventDismissed, payload: "{}")
@@ -408,8 +416,25 @@ private final class _DNBottomSheetManager {
         let allSheets = Array(sheets.values)
         sheets.removeAll()
         for entry in allSheets {
+            entry.isDismissing = true
+            // 1. Break delegate chains so UIKit cannot fire any callbacks back to Dart
+            entry.delegate = nil
+            entry.presentedVC.sheetPresentationController?.delegate = nil
+            entry.presentedVC.presentationController?.delegate = nil
+            entry.containerVC.sheetPresentationController?.delegate = nil
+            entry.containerVC.presentationController?.delegate = nil
+
+            // 2. Detach subviews and root view BEFORE dismissing to prevent first responder / focus / text editing
+            // events from invoking callbacks that belonged to the destroyed isolate.
+            entry.containerVC.rootView?.removeFromSuperview()
+            entry.containerVC.rootView = nil
+            entry.containerVC.view.subviews.forEach { $0.removeFromSuperview() }
+
+            // 3. Dispose the root view in DartNative registry
             _dnDisposeView?(entry.rootViewId)
-            entry.containerVC.dismiss(animated: false, completion: nil)
+
+            // 4. Dismiss the presented view controller
+            entry.presentedVC.dismiss(animated: false, completion: nil)
         }
     }
 }
@@ -535,16 +560,20 @@ private func frontVC() -> UIViewController? {
 /// session's dispatcher pointer — we use this to dismiss any zombie sheets.
 @_cdecl("DNBottomSheetSetDispatcher")
 public func DNBottomSheetSetDispatcher(_ callbackPtr: Int64) {
+    // 1. Immediately invalidate the old dispatcher slot pointer so NO callbacks can be fired to the dead isolate
+    _dispatcherSlot.pointee = 0
+
     if #available(iOS 15, *) {
         if Thread.isMainThread {
             _DNBottomSheetManager.shared.resetOnHotRestart()
         } else {
-            DispatchQueue.main.async {
+            DispatchQueue.main.sync {
                 _DNBottomSheetManager.shared.resetOnHotRestart()
             }
         }
     }
 
+    // 2. Install new callback pointer only after all zombie sheets are torn down
     _dispatcherSlot.pointee = callbackPtr
     if !_slotRegistered {
         _slotRegistered = true
@@ -803,7 +832,7 @@ public func DNBottomSheetDismiss(_ sheetId: Int64, _ animated: Bool) {
     DispatchQueue.main.async {
         guard let entry = _DNBottomSheetManager.shared.entry(for: sheetId), !entry.isDismissing else { return }
         entry.isDismissing = true
-        entry.containerVC.dismiss(animated: animated) {
+        entry.presentedVC.dismiss(animated: animated) {
             _DNBottomSheetManager.shared.cleanupSheet(sheetId, notify: true)
         }
     }
