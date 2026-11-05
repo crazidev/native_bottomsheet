@@ -12,8 +12,8 @@ class SheetNativeBindings implements NativeBindings {
   final void Function() _onMutations;
 
   @override
-  void applyMutations(List<ViewMutation> mutations) {
-    _inner.applyMutations(mutations);
+  void applyMutations(List<ViewMutation> mutations, {bool layout = true}) {
+    _inner.applyMutations(mutations, layout: layout);
     _onMutations();
   }
 
@@ -31,30 +31,25 @@ class SheetNativeBindings implements NativeBindings {
   @override
   int registerPanStartCallback(
     void Function(double, double, double, double) callback,
-  ) =>
-      _inner.registerPanStartCallback(callback);
+  ) => _inner.registerPanStartCallback(callback);
 
   @override
   int registerPanUpdateCallback(
     void Function(double, double, double, double, double, double) callback,
-  ) =>
-      _inner.registerPanUpdateCallback(callback);
+  ) => _inner.registerPanUpdateCallback(callback);
 
   @override
   int registerPanEndCallback(void Function(double, double) callback) =>
       _inner.registerPanEndCallback(callback);
 
   @override
-  int registerScaleStartCallback(
-    void Function(double, double, int) callback,
-  ) =>
+  int registerScaleStartCallback(void Function(double, double, int) callback) =>
       _inner.registerScaleStartCallback(callback);
 
   @override
   int registerScaleUpdateCallback(
     void Function(double, double, double, int) callback,
-  ) =>
-      _inner.registerScaleUpdateCallback(callback);
+  ) => _inner.registerScaleUpdateCallback(callback);
 
   @override
   int registerScaleEndCallback(void Function(double, int) callback) =>
@@ -104,15 +99,15 @@ class SheetNativeBindings implements NativeBindings {
   int registerColorPickerCallback(void Function(int, bool) callback) =>
       _inner.registerColorPickerCallback(callback);
 
-  @override
-  int registerMediaPickerCallback(void Function(String) callback) =>
-      _inner.registerMediaPickerCallback(callback);
+  // NOTE (2026-10-12): registerMediaPickerCallback delegation removed — the
+  // installed DartNative SDK's NativeBindings has no such member yet, so any
+  // compilation against it fails. Nothing calls this through the wrapper.
+  // Restore the delegation (see git history) once the SDK ships the API.
 
   @override
   int registerScrollCallback(
     void Function(double, double, double, bool) callback,
-  ) =>
-      _inner.registerScrollCallback(callback);
+  ) => _inner.registerScrollCallback(callback);
 
   @override
   int registerFastListRangeCallback(void Function(int, int) callback) =>
@@ -129,20 +124,17 @@ class SheetNativeBindings implements NativeBindings {
   @override
   int registerCustomPaintLayoutCallback(
     void Function(double width, double height) callback,
-  ) =>
-      _inner.registerCustomPaintLayoutCallback(callback);
+  ) => _inner.registerCustomPaintLayoutCallback(callback);
 
   @override
-  double getImageAspectRatio(int viewId) =>
-      _inner.getImageAspectRatio(viewId);
+  double getImageAspectRatio(int viewId) => _inner.getImageAspectRatio(viewId);
 
   @override
   int registerSpanTapDispatch(void Function(int cbIdx) callback) =>
       _inner.registerSpanTapDispatch(callback);
 
   @override
-  void releaseCallback(int callbackId) =>
-      _inner.releaseCallback(callbackId);
+  void releaseCallback(int callbackId) => _inner.releaseCallback(callbackId);
 
   @override
   void updateCallback(int callbackId, Function callback) =>
@@ -169,8 +161,7 @@ class SheetNativeBindings implements NativeBindings {
 
   @override
   ({int composingEnd, int composingStart, int end, int start})
-      textFieldGetSelection(int viewId) =>
-          _inner.textFieldGetSelection(viewId);
+  textFieldGetSelection(int viewId) => _inner.textFieldGetSelection(viewId);
 
   @override
   void textFieldSetSelection(int viewId, int start, int end) =>
@@ -187,24 +178,24 @@ class SheetNativeBindings implements NativeBindings {
     String fontFamily,
     double maxWidth,
     int maxLines,
-    double lineHeight,
-  ) =>
-      _inner.measureText(
-        text,
-        fontSize,
-        fontWeight,
-        fontFamily,
-        maxWidth,
-        maxLines,
-        lineHeight,
-      );
+    double lineHeight, {
+    bool italic = false,
+  }) => _inner.measureText(
+    text,
+    fontSize,
+    fontWeight,
+    fontFamily,
+    maxWidth,
+    maxLines,
+    lineHeight,
+    italic: italic,
+  );
 
   @override
   Size getViewSize(int viewId) => _inner.getViewSize(viewId);
 
   @override
-  Offset getViewGlobalOrigin(int viewId) =>
-      _inner.getViewGlobalOrigin(viewId);
+  Offset getViewGlobalOrigin(int viewId) => _inner.getViewGlobalOrigin(viewId);
 
   @override
   int getTextCharacterOffset(int viewId, double x, double y) =>
@@ -235,32 +226,27 @@ class SheetNativeBindings implements NativeBindings {
   @override
   void registerOrientationCallback(
     void Function(double width, double height) callback,
-  ) =>
-      _inner.registerOrientationCallback(callback);
+  ) => _inner.registerOrientationCallback(callback);
 
   @override
   void registerDeviceOrientationCallback(
     void Function(int orientationIndex)? callback,
-  ) =>
-      _inner.registerDeviceOrientationCallback(callback);
+  ) => _inner.registerDeviceOrientationCallback(callback);
 
   @override
   Float32List? measureParagraph(
     Uint8List paragraphBytes,
     double constraintWidth,
-  ) =>
-      _inner.measureParagraph(paragraphBytes, constraintWidth);
+  ) => _inner.measureParagraph(paragraphBytes, constraintWidth);
 
   @override
-  Uint8List? loadAssetBytes(String assetKey) =>
-      _inner.loadAssetBytes(assetKey);
+  Uint8List? loadAssetBytes(String assetKey) => _inner.loadAssetBytes(assetKey);
 
   @override
   Float32List? getParagraphLineMetrics(
     Uint8List paragraphBytes,
     double constraintWidth,
-  ) =>
-      _inner.getParagraphLineMetrics(paragraphBytes, constraintWidth);
+  ) => _inner.getParagraphLineMetrics(paragraphBytes, constraintWidth);
 
   @override
   Float32List? getParagraphBoxesForRange(
@@ -268,13 +254,12 @@ class SheetNativeBindings implements NativeBindings {
     double constraintWidth,
     int start,
     int end,
-  ) =>
-      _inner.getParagraphBoxesForRange(
-        paragraphBytes,
-        constraintWidth,
-        start,
-        end,
-      );
+  ) => _inner.getParagraphBoxesForRange(
+    paragraphBytes,
+    constraintWidth,
+    start,
+    end,
+  );
 
   @override
   Int32List? getParagraphPositionForOffset(
@@ -282,13 +267,12 @@ class SheetNativeBindings implements NativeBindings {
     double constraintWidth,
     double x,
     double y,
-  ) =>
-      _inner.getParagraphPositionForOffset(
-        paragraphBytes,
-        constraintWidth,
-        x,
-        y,
-      );
+  ) => _inner.getParagraphPositionForOffset(
+    paragraphBytes,
+    constraintWidth,
+    x,
+    y,
+  );
 
   @override
   void registerAppLifecycleCallback(void Function(int stateIndex) callback) =>
@@ -318,16 +302,14 @@ class SheetNativeBindings implements NativeBindings {
       _inner.registerKeyboardView(viewId);
 
   @override
-  void registerBottomBar(ViewId viewId) =>
-      _inner.registerBottomBar(viewId);
+  void registerBottomBar(ViewId viewId) => _inner.registerBottomBar(viewId);
 
   @override
   void setViewInterfaceStyle(ViewId viewId, int style) =>
       _inner.setViewInterfaceStyle(viewId, style);
 
   @override
-  void setAppInterfaceStyle(int style) =>
-      _inner.setAppInterfaceStyle(style);
+  void setAppInterfaceStyle(int style) => _inner.setAppInterfaceStyle(style);
 
   @override
   void reloadFastList(ViewId id) => _inner.reloadFastList(id);
@@ -338,13 +320,12 @@ class SheetNativeBindings implements NativeBindings {
     int index, {
     double alignment = 0.0,
     bool animated = false,
-  }) =>
-      _inner.fastListScrollToItem(
-        id,
-        index,
-        alignment: alignment,
-        animated: animated,
-      );
+  }) => _inner.fastListScrollToItem(
+    id,
+    index,
+    alignment: alignment,
+    animated: animated,
+  );
 
   @override
   void resetViews() => _inner.resetViews();
@@ -382,8 +363,7 @@ class SheetNativeBindings implements NativeBindings {
   void setStatusBarColor(int argb) => _inner.setStatusBarColor(argb);
 
   @override
-  void setNavigationBarColor(int argb) =>
-      _inner.setNavigationBarColor(argb);
+  void setNavigationBarColor(int argb) => _inner.setNavigationBarColor(argb);
 
   @override
   void setNavigationBarDividerColor(int argb) =>
@@ -404,11 +384,317 @@ class SheetNativeBindings implements NativeBindings {
   bool systemIsDark() => _inner.systemIsDark();
 
   @override
-  void clipboardSetString(String text) =>
-      _inner.clipboardSetString(text);
+  void clipboardSetString(String text) => _inner.clipboardSetString(text);
 
   @override
   String? clipboardGetString() => _inner.clipboardGetString();
+
+  // ── Forwarding for the rest of the NativeBindings surface ─────────────────
+  //
+  // [NativeBindings] is a pure interface: every member is declared (most as
+  // `throw UnimplementedError()` defaults) and concrete bindings override the
+  // ones they support. `noSuchMethod` cannot stand in for those overrides —
+  // calling `(_inner as dynamic).noSuchMethod(invocation)` invokes
+  // `Object.noSuchMethod` rather than the real implementation, so any member
+  // not explicitly forwarded here throws NoSuchMethodError at runtime (for
+  // example `supportsTapEvents` when a GestureDetector mounts inside a sheet).
+  // Keep this list in sync with `NativeBindings`.
+
+  @override
+  void startLogDrain() => _inner.startLogDrain();
+
+  @override
+  bool postAfterFrame(void Function() callback) =>
+      _inner.postAfterFrame(callback);
+
+  @override
+  bool notifyVmIdle(Duration deadline) => _inner.notifyVmIdle(deadline);
+
+  @override
+  void notifyVmLowMemory() => _inner.notifyVmLowMemory();
+
+  @override
+  void notifyVmCollectAll() => _inner.notifyVmCollectAll();
+
+  @override
+  Duration get scrollQuietFor => _inner.scrollQuietFor;
+
+  @override
+  int registerRefreshCallback(void Function() callback) =>
+      _inner.registerRefreshCallback(callback);
+
+  @override
+  int registerRefreshPullCallback(void Function(double, int) callback) =>
+      _inner.registerRefreshPullCallback(callback);
+
+  @override
+  int registerTapEventCallback(
+    void Function(int, double, double, double, double) callback,
+  ) => _inner.registerTapEventCallback(callback);
+
+  @override
+  bool get supportsTapEvents => _inner.supportsTapEvents;
+
+  @override
+  bool get supportsAlignPlacement => _inner.supportsAlignPlacement;
+
+  @override
+  int registerArrangementPaneCallback(
+    // Structurally identical to `ArrangementPaneCallback`, which is declared in
+    // `package:dartnative/src/bindings/uikit_bindings.dart` and not exported by
+    // `package:dartnative/dartnative.dart` (only `NativeBindings` is).
+    void Function(
+      int index,
+      double x,
+      double y,
+      double width,
+      double height,
+      double top,
+      double left,
+      double bottom,
+      double right,
+      int hidden,
+      int splitAxis,
+      int zIndex,
+      double windowWidth,
+      double windowHeight,
+    )
+    callback,
+  ) => _inner.registerArrangementPaneCallback(callback);
+
+  @override
+  int registerDateRangePickerCallback(void Function(double, double) callback) =>
+      _inner.registerDateRangePickerCallback(callback);
+
+  @override
+  double? measureFastListRow(int listId, int rowId, double width) =>
+      _inner.measureFastListRow(listId, rowId, width);
+
+  @override
+  int getIOSMajorVersion() => _inner.getIOSMajorVersion();
+
+  @override
+  List<double> getDisplayFeatures() => _inner.getDisplayFeatures();
+
+  @override
+  List<double> getViewDisplayFeatures(int viewId) =>
+      _inner.getViewDisplayFeatures(viewId);
+
+  @override
+  void registerDisplayFeaturesCallback(void Function() callback) =>
+      _inner.registerDisplayFeaturesCallback(callback);
+
+  @override
+  List<double> getHinge() => _inner.getHinge();
+
+  @override
+  void registerHingeCallback(
+    void Function(int status, double angle, bool present)? callback,
+  ) => _inner.registerHingeCallback(callback);
+
+  @override
+  int getVerticalBarEdge() => _inner.getVerticalBarEdge();
+
+  @override
+  void registerVerticalBarEdgeCallback(void Function(int edge)? callback) =>
+      _inner.registerVerticalBarEdgeCallback(callback);
+
+  @override
+  int navigatorPush({
+    int transitionType = 1,
+    int durationMs = 350,
+    int zoomSourceViewId = 0,
+  }) => _inner.navigatorPush(
+    transitionType: transitionType,
+    durationMs: durationMs,
+    zoomSourceViewId: zoomSourceViewId,
+  );
+
+  @override
+  void navigatorCommitDeferredPush(int rootViewId) =>
+      _inner.navigatorCommitDeferredPush(rootViewId);
+
+  @override
+  void navigatorPop(
+    int rootViewId, {
+    int transitionType = 1,
+    int durationMs = 350,
+  }) => _inner.navigatorPop(
+    rootViewId,
+    transitionType: transitionType,
+    durationMs: durationMs,
+  );
+
+  @override
+  int navigatorReplace(int oldRootViewId) =>
+      _inner.navigatorReplace(oldRootViewId);
+
+  @override
+  void navigatorCommitReplace(int rootViewId) =>
+      _inner.navigatorCommitReplace(rootViewId);
+
+  @override
+  ({int handle, Rect rect}) captureHeroSnapshot(int viewId) =>
+      _inner.captureHeroSnapshot(viewId);
+
+  @override
+  Rect getViewScreenRect(int viewId) => _inner.getViewScreenRect(viewId);
+
+  @override
+  void beginHeroFlight({
+    required int snapshotHandle,
+    required Rect sourceRect,
+    required int destViewId,
+    required Rect destRect,
+    required int durationMs,
+  }) => _inner.beginHeroFlight(
+    snapshotHandle: snapshotHandle,
+    sourceRect: sourceRect,
+    destViewId: destViewId,
+    destRect: destRect,
+    durationMs: durationMs,
+  );
+
+  @override
+  void releaseHeroSnapshot(int snapshotHandle) =>
+      _inner.releaseHeroSnapshot(snapshotHandle);
+
+  @override
+  void prepareHeroDest(int destViewId) => _inner.prepareHeroDest(destViewId);
+
+  @override
+  void revealHeroDest(int destViewId) => _inner.revealHeroDest(destViewId);
+
+  @override
+  int presentDartSheet({
+    int detent = 0,
+    int bgColor = 0,
+    double cornerRadius = -1,
+    bool prefersGrabber = true,
+    void Function()? onDismissed,
+    String headerTitle = '',
+    String headerLeadingIcon = '',
+    String headerTrailingIcon = '',
+    String headerTrailingIcon2 = '',
+    double headerTrailingGap = 0,
+    bool headerTrailingProminent = false,
+    int headerTrailingTint = 0,
+    void Function(int index)? onHeaderTap,
+  }) => _inner.presentDartSheet(
+    detent: detent,
+    bgColor: bgColor,
+    cornerRadius: cornerRadius,
+    prefersGrabber: prefersGrabber,
+    onDismissed: onDismissed,
+    headerTitle: headerTitle,
+    headerLeadingIcon: headerLeadingIcon,
+    headerTrailingIcon: headerTrailingIcon,
+    headerTrailingIcon2: headerTrailingIcon2,
+    headerTrailingGap: headerTrailingGap,
+    headerTrailingProminent: headerTrailingProminent,
+    headerTrailingTint: headerTrailingTint,
+    onHeaderTap: onHeaderTap,
+  );
+
+  @override
+  void updateDartSheetHeader(
+    int rootViewId, {
+    String title = '',
+    String leadingIcon = '',
+    String trailingIcon = '',
+    String trailingIcon2 = '',
+    double trailingGap = 0,
+    bool trailingProminent = false,
+    int trailingTint = 0,
+    void Function(int index)? onHeaderTap,
+  }) => _inner.updateDartSheetHeader(
+    rootViewId,
+    title: title,
+    leadingIcon: leadingIcon,
+    trailingIcon: trailingIcon,
+    trailingIcon2: trailingIcon2,
+    trailingGap: trailingGap,
+    trailingProminent: trailingProminent,
+    trailingTint: trailingTint,
+    onHeaderTap: onHeaderTap,
+  );
+
+  @override
+  void dismissDartSheet(int rootViewId) => _inner.dismissDartSheet(rootViewId);
+
+  @override
+  void setPresentationDismissible(int rootViewId, bool dismissible) =>
+      _inner.setPresentationDismissible(rootViewId, dismissible);
+
+  @override
+  void registerPresentationDismissAttemptCallback(
+    void Function(int rootViewId) callback,
+  ) => _inner.registerPresentationDismissAttemptCallback(callback);
+
+  @override
+  int presentDartBottomOverlay({
+    int bgColor = 0,
+    double cornerRadius = 15,
+    double dimOpacity = 0.4,
+    void Function()? onDismissed,
+  }) => _inner.presentDartBottomOverlay(
+    bgColor: bgColor,
+    cornerRadius: cornerRadius,
+    dimOpacity: dimOpacity,
+    onDismissed: onDismissed,
+  );
+
+  @override
+  void setBottomOverlayHandle(int rootViewId, bool visible) =>
+      _inner.setBottomOverlayHandle(rootViewId, visible);
+
+  @override
+  void setCenterOverlayGlass(int rootViewId, bool glass) =>
+      _inner.setCenterOverlayGlass(rootViewId, glass);
+
+  @override
+  void dismissDartBottomOverlay(int rootViewId) =>
+      _inner.dismissDartBottomOverlay(rootViewId);
+
+  @override
+  int presentKeyboardOverlay({void Function()? onDismissed}) =>
+      _inner.presentKeyboardOverlay(onDismissed: onDismissed);
+
+  @override
+  void dismissKeyboardOverlay(int rootViewId) =>
+      _inner.dismissKeyboardOverlay(rootViewId);
+
+  @override
+  int presentAppOverlay() => _inner.presentAppOverlay();
+
+  @override
+  void dismissAppOverlay(int rootViewId) =>
+      _inner.dismissAppOverlay(rootViewId);
+
+  @override
+  int presentDartCenterOverlay({
+    int bgColor = 0,
+    double cornerRadius = 15,
+    double dimOpacity = 0.4,
+    void Function()? onDismissed,
+  }) => _inner.presentDartCenterOverlay(
+    bgColor: bgColor,
+    cornerRadius: cornerRadius,
+    dimOpacity: dimOpacity,
+    onDismissed: onDismissed,
+  );
+
+  @override
+  void dismissDartCenterOverlay(int rootViewId) =>
+      _inner.dismissDartCenterOverlay(rootViewId);
+
+  @override
+  void finishAutofillContext(bool shouldSave) =>
+      _inner.finishAutofillContext(shouldSave);
+
+  @override
+  List<int>? getThemeRoles({required bool dark}) =>
+      _inner.getThemeRoles(dark: dark);
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
