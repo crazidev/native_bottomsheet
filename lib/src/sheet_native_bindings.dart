@@ -106,7 +106,7 @@ class SheetNativeBindings implements NativeBindings {
 
   @override
   int registerScrollCallback(
-    void Function(double, double, double, bool) callback,
+    void Function(double, double, double, int) callback,
   ) => _inner.registerScrollCallback(callback);
 
   @override
