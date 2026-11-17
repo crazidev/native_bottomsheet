@@ -1,3 +1,4 @@
 {
-  "dartx.dartNativeSdkPath": "~/zero"
+  "dartx.dartNativeSdkPath": "~/zero",
+  "dartnative.dartNativeSdkPath": "~/zero"
 }

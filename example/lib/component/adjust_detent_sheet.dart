@@ -91,12 +91,14 @@ class AdjustDetentSheetState extends State<AdjustDetentSheet> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Adjust Detents',
-                style: TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
+              Center(
+                child: const Text(
+                  'Adjust Detents Sheet',
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
               ),
               IconButton(

@@ -5,6 +5,12 @@ import 'package:dartnative/plugin.dart';
 
 /// Wraps platform [NativeBindings] to intercept mutation flushes and trigger
 /// an automatic layout + detent re-evaluation on the native sheet controller.
+///
+/// Every member of [NativeBindings] is forwarded explicitly — see the note
+/// further down for why `noSuchMethod` cannot stand in for the forwarding.
+/// The list is validated against DartNative 1.8.0's `NativeBindings`; re-check
+/// it whenever the SDK gains members (a missing forward compiles, then throws
+/// at runtime the first time the framework calls it inside a sheet).
 class SheetNativeBindings implements NativeBindings {
   SheetNativeBindings(this._inner, this._onMutations);
 
@@ -19,6 +25,9 @@ class SheetNativeBindings implements NativeBindings {
 
   @override
   void loadSymbols() => _inner.loadSymbols();
+
+  @override
+  void lookupSymbols() => _inner.lookupSymbols();
 
   @override
   int registerGestureCallback(void Function() callback) =>
@@ -110,6 +119,9 @@ class SheetNativeBindings implements NativeBindings {
   ) => _inner.registerScrollCallback(callback);
 
   @override
+  bool scrollReportsLifecycle() => _inner.scrollReportsLifecycle();
+
+  @override
   int registerFastListRangeCallback(void Function(int, int) callback) =>
       _inner.registerFastListRangeCallback(callback);
 
@@ -168,6 +180,10 @@ class SheetNativeBindings implements NativeBindings {
       _inner.textFieldSetSelection(viewId, start, end);
 
   @override
+  bool textFieldMoveFocus(int viewId, bool forward) =>
+      _inner.textFieldMoveFocus(viewId, forward);
+
+  @override
   double getTextScaleFactor() => _inner.getTextScaleFactor();
 
   @override
@@ -208,6 +224,13 @@ class SheetNativeBindings implements NativeBindings {
   @override
   void registerBrightnessCallback(void Function(bool isDark) callback) =>
       _inner.registerBrightnessCallback(callback);
+
+  @override
+  int accessibilityFeatures() => _inner.accessibilityFeatures();
+
+  @override
+  void registerAccessibilityCallback(void Function(int flags) callback) =>
+      _inner.registerAccessibilityCallback(callback);
 
   @override
   void registerSystemPopCallback(void Function(int poppedRootId) callback) =>
@@ -309,6 +332,9 @@ class SheetNativeBindings implements NativeBindings {
       _inner.setViewInterfaceStyle(viewId, style);
 
   @override
+  void rethemeNativeViews() => _inner.rethemeNativeViews();
+
+  @override
   void setAppInterfaceStyle(int style) => _inner.setAppInterfaceStyle(style);
 
   @override
@@ -328,7 +354,8 @@ class SheetNativeBindings implements NativeBindings {
   );
 
   @override
-  void resetViews() => _inner.resetViews();
+  void resetViews({bool reattach = false}) =>
+      _inner.resetViews(reattach: reattach);
 
   @override
   void dismissSplash() => _inner.dismissSplash();
@@ -436,7 +463,27 @@ class SheetNativeBindings implements NativeBindings {
   bool get supportsTapEvents => _inner.supportsTapEvents;
 
   @override
+  int registerPointerEventCallback(
+    void Function(int, int, double, double, double, double) callback,
+  ) => _inner.registerPointerEventCallback(callback);
+
+  @override
+  bool get supportsPointerEvents => _inner.supportsPointerEvents;
+
+  @override
   bool get supportsAlignPlacement => _inner.supportsAlignPlacement;
+
+  @override
+  bool get supportsOverflowClip => _inner.supportsOverflowClip;
+
+  @override
+  bool get supportsWidthPercent => _inner.supportsWidthPercent;
+
+  @override
+  bool get supportsFittedBox => _inner.supportsFittedBox;
+
+  @override
+  bool get supportsFlexLoose => _inner.supportsFlexLoose;
 
   @override
   int registerArrangementPaneCallback(
@@ -469,6 +516,10 @@ class SheetNativeBindings implements NativeBindings {
   @override
   double? measureFastListRow(int listId, int rowId, double width) =>
       _inner.measureFastListRow(listId, rowId, width);
+
+  @override
+  int? fastListRowAt(int listId, double offset) =>
+      _inner.fastListRowAt(listId, offset);
 
   @override
   int getIOSMajorVersion() => _inner.getIOSMajorVersion();

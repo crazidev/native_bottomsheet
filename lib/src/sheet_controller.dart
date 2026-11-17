@@ -17,6 +17,9 @@ class DNSheetController {
   final int _sheetId;
   final List<DNSheetDetent> _detents;
 
+  /// The unique sheet ID assigned to this bottom sheet.
+  int get sheetId => _sheetId;
+
   DNSheetDetent? _currentDetent;
   bool _isVisible = true;
   bool _isPresented = false;

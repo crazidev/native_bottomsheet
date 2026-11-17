@@ -6,7 +6,9 @@ plugins {
 
 android {
     namespace = "com.dartnative.bottom_sheet"
-    compileSdk = 35
+    // Match the DartNative 1.8 Android SDK: compileSdk 36, minSdk 26
+    // (dartnative.compileSdkVersion / dartnative.minSdkVersion).
+    compileSdk = 36
     ndkVersion = "28.2.13676358"
 
     compileOptions {
@@ -15,7 +17,7 @@ android {
     }
 
     defaultConfig {
-        minSdk = 24
+        minSdk = 26
     }
 
     externalNativeBuild {

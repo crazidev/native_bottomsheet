@@ -22,12 +22,17 @@ class PreventCloseSheet extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Text(
-                'Prevent Close',
-                style: TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
+              Padding(
+                padding: EdgeInsets.all(10),
+                child: Center(
+                  child: Text(
+                    'Prevent Close',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
             ],

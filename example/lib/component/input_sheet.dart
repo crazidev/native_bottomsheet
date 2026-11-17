@@ -1,4 +1,4 @@
-import 'package:dartnative/flutter_compat.dart';
+import 'package:dartnative/dartnative.dart';
 import 'package:native_bottomsheet/native_bottomsheet.dart';
 
 class InputSheet extends StatefulWidget {

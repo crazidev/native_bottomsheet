@@ -27,7 +27,10 @@ linter:
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
 
-plugins:
-  assists_kit:
-    hosted: https://dartpub.dev
-    version: ^0.1.4
+formatter:
+  trailing_commas: preserve
+
+# plugins:
+#   assists_kit:
+#     hosted: https://dartpub.dev
+#     version: ^0.1.4

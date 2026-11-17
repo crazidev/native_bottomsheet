@@ -1,4 +1,6 @@
-import 'package:dartnative/flutter_compat.dart';
+import 'dart:io';
+
+import 'package:dartnative/dartnative.dart';
 import 'package:native_bottomsheet/native_bottomsheet.dart';
 
 /// A Dart framework or package definition for the search list.
@@ -193,21 +195,21 @@ class _RoutedFrameworksSheetState extends State<RoutedFrameworksSheet> {
     return Scaffold(
       backgroundColor: const Color(0xFF141416),
       brightness: Brightness.dark,
-      appBar: AppBar(
-        title: const Text(
-          'DartNative Bottomsheet',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        leading: IconButton(
-          icon: const Icon(CupertinoIcons.xmark, color: Colors.white70),
-          onPressed: () => widget.controller.dismiss(),
-        ),
-        actions: [],
-      ),
+      // appBar: AppBar(
+      //   title: const Text(
+      //     'DartNative Bottomsheet',
+      //     style: TextStyle(
+      //       color: Colors.white,
+      //       fontSize: 17,
+      //       fontWeight: FontWeight.w700,
+      //     ),
+      //   ),
+      //   // leading: IconButton(
+      //   //   icon: const Icon(CupertinoIcons.xmark, color: Colors.white70),
+      //   //   onPressed: () => widget.controller.dismiss(),
+      //   // ),
+      //   actions: [],
+      // ),
       body: Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
         child: Column(

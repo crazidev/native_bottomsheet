@@ -57,7 +57,7 @@ class FitContentSheetState extends State<FitContentSheet> {
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
       height: _currentHeight,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,

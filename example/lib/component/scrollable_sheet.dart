@@ -45,12 +45,14 @@ class _ScrollableSheetState extends State<ScrollableSheet> {
         actions: [
           IconButton(
             icon: Icon(
-              _activeDetent == .medium
+              _activeDetent == DNSheetDetent.medium
                   ? CupertinoIcons.rectangle_expand_vertical
                   : CupertinoIcons.rectangle_compress_vertical,
             ),
             onPressed: () {
-              _activeDetent = _activeDetent == .medium ? .large : .medium;
+              _activeDetent = _activeDetent == DNSheetDetent.medium
+                  ? DNSheetDetent.large
+                  : DNSheetDetent.medium;
               setState(() {});
               widget.controller.snapTo(_activeDetent);
             },

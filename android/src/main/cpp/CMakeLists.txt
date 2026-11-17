@@ -4,7 +4,7 @@ project(native_bottomsheet)
 add_library(
   native_bottomsheet
   SHARED
-  native_bottomsheet.cpp
+  dartnative_bottom_sheet.cpp
 )
 
 target_link_libraries(

@@ -1,6 +1,4 @@
 import 'package:dartnative/dartnative.dart';
-import 'package:dartnative/flutter_compat.dart';
-import 'package:native_bottomsheet/native_bottomsheet.dart';
 import 'package:example/component/adjust_detent_sheet.dart';
 import 'package:example/component/fit_content_sheet.dart';
 import 'package:example/component/input_sheet.dart';
@@ -8,28 +6,16 @@ import 'package:example/component/prevent_close_sheet.dart';
 import 'package:example/component/routed_frameworks_sheet.dart';
 import 'package:example/component/scrollable_sheet.dart';
 import 'package:example/component/stacked_sheet.dart';
+import 'package:native_bottomsheet/native_bottomsheet.dart';
 
 import 'dartnative_plugin_registrant.dart';
 
 void main() {
   DartNativePluginRegistrant.registerAll();
 
-  SystemChrome.defaultStyle = const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarBrightness: Brightness.light,
-    statusBarIconBrightness: Brightness.dark,
-    systemNavigationBarColor: Colors.transparent,
-    systemNavigationBarIconBrightness: Brightness.dark,
-  );
-
-  DartNativeLogger.run(
-    () {
-      runApp(const BottomSheetExampleApp());
-    },
-    verbose: false, // framework-internal diagnostics
-    saveToFile: false, // persist every session to a log file
-  );
-  // runApp(const BottomSheetExampleApp());
+  DartNativeLogger.run(() {
+    runApp(const BottomSheetExampleApp());
+  });
 }
 
 class BottomSheetExampleApp extends StatefulWidget {
@@ -224,6 +210,8 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
 
   @override
   Widget build(BuildContext context) {
+    var size = MediaQuery.sizeOf(context).width;
+    
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
       brightness: Brightness.light,
@@ -238,87 +226,92 @@ class _BottomSheetExampleAppState extends State<BottomSheetExampleApp> {
         ),
         centerTitle: true,
       ),
-      body: Column(
-        // padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Section 1: Fit Content
-          TestCaseCard(
-            title: 'Fit content',
-            description:
-                'Auto-measures intrinsic content height using Yoga. Dynamically expands or collapses size on state mutation.',
-            buttonText: 'Test Fit to Content',
-            buttonColor: const Color(0xFF34C759),
-            onTap: _openFitToContentSheet,
-          ),
-          const SizedBox(height: 14),
+      body: Container(
+        // color: Colors.red,
+        width: size,
+        child: Column(
+          // padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Section 1: Fit Content
+            TestCaseCard(
+              title: 'Fit content',
+              description:
+                  'Auto-measures intrinsic content height using Yoga. Dynamically expands or collapses size on state mutation.',
+              buttonText: 'Test Fit to Content',
+              buttonColor: const Color(0xFF34C759),
+              onTap: _openFitToContentSheet,
+            ),
+            const SizedBox(height: 14),
 
-          // Section 2: Input Sheet
-          TestCaseCard(
-            title: 'Sheet with Input',
-            description:
-                'Embedded native TextField with keyboard elevation, focus handling, live text mirroring, and form submission.',
-            buttonText: 'Test Input Sheet',
-            buttonColor: const Color(0xFF007AFF),
-            onTap: _openInputSheet,
-          ),
-          const SizedBox(height: 14),
+            // Section 2: Input Sheet
+            TestCaseCard(
+              title: 'Sheet with Input',
+              description:
+                  'Embedded native TextField with keyboard elevation, focus handling, live text mirroring, and form submission.',
+              buttonText: 'Test Input Sheet',
+              buttonColor: const Color(0xFF007AFF),
+              onTap: _openInputSheet,
+            ),
+            const SizedBox(height: 14),
 
-          // Section 3: General with Adjust Detents
-          TestCaseCard(
-            title: 'Adjust Detents',
-            description:
-                'Multi-detent support (fraction 35%, medium 50%, large 100%). Interactive buttons to snap between detents programmatically.',
-            buttonText: 'Test Adjust Detents',
-            buttonColor: const Color(0xFF5856D6),
-            onTap: _openAdjustDetentSheet,
-          ),
-          const SizedBox(height: 14),
+            // Section 3: General with Adjust Detents
+            TestCaseCard(
+              title: 'Adjust Detents',
+              description:
+                  'Multi-detent support (fraction 35%, medium 50%, large 100%). Interactive buttons to snap between detents programmatically.',
+              buttonText: 'Test Adjust Detents',
+              buttonColor: const Color(0xFF5856D6),
+              onTap: _openAdjustDetentSheet,
+            ),
+            const SizedBox(height: 14),
 
-          // Section 4: Prevent Close
-          TestCaseCard(
-            title: 'Prevent Close',
-            description:
-                'Blocks swipe-to-dismiss and scrim taps. Calls onDismissAttempted callback; requires explicit confirmation button to close.',
-            buttonText: 'Test Prevent Close',
-            buttonColor: const Color(0xFFFF9500),
-            onTap: _openPreventCloseSheet,
-          ),
-          const SizedBox(height: 14),
+            // Section 4: Prevent Close
+            TestCaseCard(
+              title: 'Prevent Close',
+              description:
+                  'Blocks swipe-to-dismiss and scrim taps. Calls onDismissAttempted callback; requires explicit confirmation button to close.',
+              buttonText: 'Test Prevent Close',
+              buttonColor: const Color(0xFFFF9500),
+              onTap: _openPreventCloseSheet,
+            ),
+            const SizedBox(height: 14),
 
-          // Section 5: Scrollable Content
-          TestCaseCard(
-            title: 'Scrollable Content',
-            description:
-                '60 rows in a fixed-height list. Scroll inside the sheet, snap between medium/large, and test scroll-expands-sheet at the list edge.',
-            buttonText: 'Test Scrollable Sheet',
-            buttonColor: const Color(0xFF30B0C7),
-            onTap: _openScrollableSheet,
-          ),
-          const SizedBox(height: 14),
+            // Section 5: Scrollable Content
+            TestCaseCard(
+              title: 'Scrollable Content',
+              description:
+                  '60 rows in a fixed-height list. Scroll inside the sheet, snap between medium/large, and test scroll-expands-sheet at the list edge.',
+              buttonText: 'Test Scrollable Sheet',
+              buttonColor: const Color(0xFF30B0C7),
+              onTap: _openScrollableSheet,
+            ),
+            const SizedBox(height: 14),
 
-          // Section 6: Stacked Sheet
-          TestCaseCard(
-            title: 'Stacked Sheet',
-            description:
-                'Open a bottom sheet from within another bottom sheet to test stacked rendering and gesture resolution.',
-            buttonText: 'Test Stacked Sheet',
-            buttonColor: const Color(0xFFFF6B35),
-            onTap: _openStackedSheet,
-          ),
-          const SizedBox(height: 14),
+            // Section 6: Stacked Sheet
+            TestCaseCard(
+              title: 'Stacked Sheet',
+              description:
+                  'Open a bottom sheet from within another bottom sheet to test stacked rendering and gesture resolution.',
+              buttonText: 'Test Stacked Sheet',
+              buttonColor: const Color(0xFFFF6B35),
+              onTap: _openStackedSheet,
+            ),
+            const SizedBox(height: 14),
 
-          // Section 7: Router & Framework Search
-          TestCaseCard(
-            title: 'Navigation Sheet',
-            description:
-                'Full sheet with Scaffold, action button, close button, in-sheet routing, and a searchable list of popular Dart frameworks.',
-            buttonText: 'Test Router Sheet',
-            buttonColor: const Color(0xFF007AFF),
-            onTap: _openRoutedFrameworksSheet,
-          ),
-          const SizedBox(height: 30),
-        ],
+            // Section 7: Router & Framework Search
+            TestCaseCard(
+              title: 'Navigation Sheet',
+              description:
+                  'Full sheet with Scaffold, action button, close button, in-sheet routing, and a searchable list of popular Dart frameworks.',
+              buttonText: 'Test Router Sheet',
+              buttonColor: const Color(0xFF007AFF),
+              onTap: _openRoutedFrameworksSheet,
+            ),
+            const SizedBox(height: 30),
+          ],
+        ),
       ),
     );
   }

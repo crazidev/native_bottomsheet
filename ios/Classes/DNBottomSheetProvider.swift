@@ -181,6 +181,25 @@ private final class _DNBottomSheetContainerViewController: UIViewController {
         cachedMeasurementWidth = nil
     }
 
+    /// Coalesced layout pass.
+    ///
+    /// Dart flushes mutations once per frame and may flush several batches in
+    /// one runloop turn; each one asks for a layout. Collapsing them into a
+    /// single FlexLayout pass keeps scrolling and animated resizes smooth
+    /// instead of laying the sheet out once per batch.
+    private var layoutPassScheduled = false
+
+    func scheduleLayoutPass() {
+        invalidateContentHeightCache()
+        guard !layoutPassScheduled else { return }
+        layoutPassScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.layoutPassScheduled = false
+            self.layoutRootFlex()
+        }
+    }
+
     func measureContentHeight(forWidth width: CGFloat) -> CGFloat {
         if let cachedW = cachedMeasurementWidth, cachedW == width,
            let cachedH = cachedContentHeight {
@@ -412,9 +431,17 @@ private final class _DNBottomSheetManager {
 
     func resetOnHotRestart() {
         assert(Thread.isMainThread, "resetOnHotRestart must run on the main thread")
+        dnLog("resetOnHotRestart: \(sheets.count) open sheet(s)")
         guard !sheets.isEmpty else { return }
         let allSheets = Array(sheets.values)
         sheets.removeAll()
+
+        let animationsWereEnabled = UIView.areAnimationsEnabled
+        UIView.setAnimationsEnabled(false)
+        defer {
+            UIView.setAnimationsEnabled(animationsWereEnabled)
+        }
+
         for entry in allSheets {
             entry.isDismissing = true
             // 1. Break delegate chains so UIKit cannot fire any callbacks back to Dart
@@ -424,18 +451,52 @@ private final class _DNBottomSheetManager {
             entry.containerVC.sheetPresentationController?.delegate = nil
             entry.containerVC.presentationController?.delegate = nil
 
-            // 2. Detach subviews and root view BEFORE dismissing to prevent first responder / focus / text editing
+            // 2. Neutralize input views and end editing BEFORE removing from superview or dismissing
+            neutralizeInputViews(in: entry.containerVC.view)
+            neutralizeInputViews(in: entry.presentedVC.view)
+            entry.containerVC.view.window?.endEditing(true)
+            entry.containerVC.view.endEditing(true)
+            entry.presentedVC.view.endEditing(true)
+
+            // 3. Detach subviews and root view BEFORE dismissing to prevent first responder / focus / text editing
             // events from invoking callbacks that belonged to the destroyed isolate.
             entry.containerVC.rootView?.removeFromSuperview()
             entry.containerVC.rootView = nil
             entry.containerVC.view.subviews.forEach { $0.removeFromSuperview() }
 
-            // 3. Dispose the root view in DartNative registry
+            // 4. Dispose the root view in DartNative registry
             _dnDisposeView?(entry.rootViewId)
 
-            // 4. Dismiss the presented view controller
-            entry.presentedVC.dismiss(animated: false, completion: nil)
+            // 5. Dismiss the presented view controller.
+            //
+            // After a hot restart the controller that presented the sheet can
+            // already be gone (the framework rebuilt its window). UIKit then
+            // ignores dismiss() and the sheet's window stays on screen, so
+            // dismiss through the presenter when it is still there and hide
+            // the orphaned window otherwise.
+            if let presenter = entry.presentedVC.presentingViewController {
+                presenter.dismiss(animated: false, completion: nil)
+            } else {
+                entry.presentedVC.dismiss(animated: false, completion: nil)
+                entry.presentedVC.view.window?.isHidden = true
+            }
         }
+    }
+}
+
+private func neutralizeInputViews(in view: UIView) {
+    if let tf = view as? UITextField {
+        tf.delegate = nil
+        tf.removeTarget(nil, action: nil, for: .allEvents)
+    }
+    if let tv = view as? UITextView {
+        tv.delegate = nil
+    }
+    if let sc = view as? UIScrollView {
+        sc.delegate = nil
+    }
+    for subview in view.subviews {
+        neutralizeInputViews(in: subview)
     }
 }
 
@@ -552,6 +613,37 @@ private func frontVC() -> UIViewController? {
     return vc
 }
 
+private typealias _Int64ConsumerFn = @convention(c) (Int64) -> Void
+
+private func disarmFrameworkCallbacks() {
+    let fnNames = [
+        "DNRegisterKeyboardCallback",
+        "DNRegisterKeyboardView",
+        "DNRegisterBrightnessCallback",
+        "DNRegisterOrientationCallback",
+        "DNRegisterDeviceOrientationCallback",
+        "DNRegisterAppLifecycleCallback",
+        "DNRegisterMemoryPressureCallback",
+        "DNRegisterSystemPopCallback",
+        "DNRegisterBottomBar",
+        // Display hooks (DartNative 1.8): display features, hinge posture,
+        // vertical-bar edge, accessibility flags and presentation dismiss
+        // attempts all hold raw Dart callback pointers. Clear them here too so
+        // a hot restart cannot invoke a callback owned by the dead isolate.
+        "DNRegisterDisplayFeaturesCallback",
+        "DNRegisterHingeCallback",
+        "DNRegisterVerticalBarEdgeCallback",
+        "DNRegisterAccessibilityCallback",
+        "DNRegisterPresentationDismissAttemptCallback"
+    ]
+    let handle = dlopen(nil, RTLD_NOLOAD)
+    for name in fnNames {
+        if let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), name) ?? (handle != nil ? dlsym(handle, name) : nil) {
+            unsafeBitCast(sym, to: _Int64ConsumerFn.self)(0)
+        }
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MARK: - @_cdecl Exports
 // ─────────────────────────────────────────────────────────────────────────────
@@ -562,6 +654,10 @@ private func frontVC() -> UIViewController? {
 public func DNBottomSheetSetDispatcher(_ callbackPtr: Int64) {
     // 1. Immediately invalidate the old dispatcher slot pointer so NO callbacks can be fired to the dead isolate
     _dispatcherSlot.pointee = 0
+    dnLog("SetDispatcher: new Dart session")
+
+    // 2. Disarm any lingering framework callbacks (keyboard, orientation, etc.) from the destroyed isolate
+    disarmFrameworkCallbacks()
 
     if #available(iOS 15, *) {
         if Thread.isMainThread {
@@ -806,8 +902,8 @@ public func DNBottomSheetLayoutContent(_ sheetId: Int64) {
     guard #available(iOS 15, *) else { return }
     DispatchQueue.main.async {
         guard let entry = _DNBottomSheetManager.shared.entry(for: sheetId) else { return }
-        entry.containerVC.invalidateContentHeightCache()
-        entry.containerVC.layoutRootFlex()
+        // Coalesced: several mutation batches may arrive in one runloop turn.
+        entry.containerVC.scheduleLayoutPass()
         entry.presentIfNeeded()
         if #available(iOS 16, *) {
             let hasContentFit = entry.detents.contains { resolved in
